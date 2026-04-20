@@ -1,0 +1,70 @@
+{{- if .Values.rbac.create }}
+# ClusterRole grants read access to the Kubernetes resources that mcp
+# queries via kubectl (get_pods, get_events, get_deployment, etc.).
+# Write operations (delete_pod, rollout_restart, scale, patch) are only needed
+# if ENABLE_RECOVERY_OPERATIONS=true — they are included here but blocked by
+# the application setting unless explicitly enabled.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "k8s-devops-assistant.fullname" . }}
+  labels:
+    {{- include "k8s-devops-assistant.labels" . | nindent 4 }}
+rules:
+  # ── Read operations (always needed) ──────────────────────────────────────────
+  - apiGroups: [""]
+    resources:
+      - pods
+      - pods/log
+      - services
+      - endpoints
+      - events
+      - namespaces
+      - nodes
+      - configmaps
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["apps"]
+    resources:
+      - deployments
+      - replicasets
+      - statefulsets
+      - daemonsets
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["extensions", "networking.k8s.io"]
+    resources:
+      - ingresses
+    verbs: ["get", "list", "watch"]
+
+  # ── Write operations (needed if ENABLE_RECOVERY_OPERATIONS=true) ─────────────
+  - apiGroups: [""]
+    resources:
+      - pods
+      - pods/exec
+    verbs: ["delete", "create"]
+
+  - apiGroups: ["apps"]
+    resources:
+      - deployments
+      - deployments/scale
+      - statefulsets
+      - statefulsets/scale
+    verbs: ["patch", "update"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "k8s-devops-assistant.fullname" . }}
+  labels:
+    {{- include "k8s-devops-assistant.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "k8s-devops-assistant.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "k8s-devops-assistant.serviceAccountName" . }}
+    namespace: {{ .Values.namespace }}
+{{- end }}

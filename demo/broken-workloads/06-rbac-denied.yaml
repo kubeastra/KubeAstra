@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: limited-sa
+  namespace: demo
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ops-reporter
+  namespace: demo
+  labels:
+    app: ops-reporter
+    scenario: rbac-denied
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ops-reporter
+  template:
+    metadata:
+      labels:
+        app: ops-reporter
+        scenario: rbac-denied
+    spec:
+      serviceAccountName: limited-sa
+      containers:
+        - name: app
+          image: bitnami/kubectl:1.29
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "[ops-reporter] starting..."
+              while true; do
+                echo "[ops-reporter] listing pods across cluster..."
+                kubectl get pods --all-namespaces || echo "[ops-reporter] RBAC denied — continuing"
+                sleep 15
+              done
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi

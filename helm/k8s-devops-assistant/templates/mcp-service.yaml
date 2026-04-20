@@ -1,0 +1,35 @@
+{{/*
+HTTP MCP server service — port 8001.
+
+Use type: NodePort or LoadBalancer to let Cursor / Claude Desktop / other MCP
+clients connect directly to the MCP server from outside the cluster.
+
+Cursor config (after exposing externally):
+  "mcpServers": {
+    "k8s-devops": {
+      "type": "http",
+      "url": "http://<node-ip>:<nodePort>/mcp/",
+      "headers": { "Authorization": "Bearer <mcpAuthToken>" }
+    }
+  }
+*/}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "k8s-devops-assistant.fullname" . }}-mcp
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "k8s-devops-assistant.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp
+spec:
+  type: {{ .Values.mcp.service.type }}
+  selector:
+    {{- include "k8s-devops-assistant.backend.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: mcp
+      port: {{ .Values.mcp.service.port }}
+      targetPort: mcp
+      protocol: TCP
+      {{- if and (eq .Values.mcp.service.type "NodePort") .Values.mcp.service.nodePort }}
+      nodePort: {{ .Values.mcp.service.nodePort }}
+      {{- end }}

@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gpu-worker
+  namespace: demo
+  labels:
+    app: gpu-worker
+    scenario: pending
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gpu-worker
+  template:
+    metadata:
+      labels:
+        app: gpu-worker
+        scenario: pending
+    spec:
+      nodeSelector:
+        accelerator: nvidia-tesla-v100
+      containers:
+        - name: app
+          image: busybox:1.36
+          command: ["sh", "-c", "sleep 3600"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi

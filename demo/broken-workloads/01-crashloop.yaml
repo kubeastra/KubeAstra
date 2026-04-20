@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+  namespace: demo
+  labels:
+    app: payment-service
+    scenario: crashloop
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payment-service
+  template:
+    metadata:
+      labels:
+        app: payment-service
+        scenario: crashloop
+    spec:
+      containers:
+        - name: app
+          image: busybox:1.36
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "[payment-service] starting..."
+              echo "[payment-service] connecting to redis-master:6379..."
+              sleep 2
+              echo "[payment-service] ERROR: connection refused to redis-master:6379"
+              exit 1
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi

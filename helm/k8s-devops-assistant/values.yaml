@@ -1,0 +1,224 @@
+# ── values.yaml — K8s DevOps Assistant Helm Chart ────────────────────────────
+#
+# Minimal install (pass secrets via --set or a secrets file):
+#
+#   helm install k8s-devops . \
+#     --namespace k8s-devops --create-namespace \
+#     --set backend.image.repository=ghcr.io/your-org/k8s-devops-backend \
+#     --set backend.image.tag=1.0.0 \
+#     --set frontend.image.repository=ghcr.io/your-org/k8s-devops-frontend \
+#     --set frontend.image.tag=1.0.0 \
+#     --set secrets.geminiApiKey="YOUR_GEMINI_API_KEY" \
+#     --set secrets.kubeconfig="$(cat ~/.kube/config | base64)"
+
+# ── Global ────────────────────────────────────────────────────────────────────
+nameOverride: ""
+# Shorten pod names: "k8s-devops-assistant-backend-xxx" / "k8s-devops-assistant-frontend-xxx"
+# Without this, Helm combines release name + chart name → "k8s-devops-k8s-devops-assistant-..."
+fullnameOverride: "k8s-devops-assistant"
+
+namespace: k8s-devops
+
+# ── Backend (FastAPI + mcp) ───────────────────────────────────────
+backend:
+  image:
+    # Replace with your registry — e.g. ghcr.io/your-org/k8s-devops-backend
+    repository: ghcr.io/your-org/k8s-devops-backend
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  replicaCount: 1
+
+  service:
+    type: ClusterIP
+    port: 8000
+
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+
+  # Liveness / readiness probes
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 15
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  # Non-secret application configuration
+  config:
+    # Kubernetes namespaces allowed for kubectl queries (* = all)
+    allowedNamespaces: "*"
+    # kubectl command timeout in seconds
+    kubectlTimeoutSeconds: "15"
+    # Maximum log lines per request
+    maxLogTailLines: "200"
+    # Maximum output bytes per tool response
+    maxOutputBytes: "20000"
+    # Gemini model to use
+    geminiModel: "gemini-2.5-flash"
+    # Enable write/recovery operations (delete_pod, rollout_restart, scale, patch)
+    enableRecoveryOperations: "false"
+    # Weaviate URL (set if RAG is enabled)
+    weaviateUrl: "http://localhost:8080"
+    weaviateCollection: "K8sAnsibleError"
+    embeddingModel: "sentence-transformers/all-MiniLM-L6-v2"
+    # k8sgpt CLI integration (requires k8sgpt installed in the image)
+    enableK8sgpt: "false"
+
+  # ── SQLite persistence ─────────────────────────────────────────────────────
+  # The backend writes chat_history.db to /app/data/ (controlled by DB_PATH).
+  # Without a PVC the file is lost on pod restart (all chat histories cleared).
+  # Set enabled: true and choose a storageClass to keep history across restarts.
+  persistence:
+    enabled: false
+    storageClass: ""      # "" = cluster default; "standard", "gp2", etc.
+    size: 1Gi
+    accessMode: ReadWriteOnce
+    mountPath: /app/data
+
+  # Node selector, tolerations, affinity (optional)
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# ── Frontend (Next.js) ────────────────────────────────────────────────────────
+frontend:
+  image:
+    # Replace with your registry — e.g. ghcr.io/your-org/k8s-devops-frontend
+    repository: ghcr.io/your-org/k8s-devops-frontend
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  replicaCount: 1
+
+  service:
+    type: LoadBalancer
+    port: 3000
+    # Add cloud-provider annotations here as needed.
+    # GKE internal LB example:
+    #   networking.gke.io/load-balancer-type: "Internal"
+    # AWS NLB example:
+    #   service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    annotations: {}
+
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "256Mi"
+
+  # The frontend calls the backend API. In-cluster, use the backend Service DNS.
+  # If using Ingress with a public URL, override this with the public backend URL.
+  # Default uses the in-cluster service name resolved at deploy time via _helpers.tpl.
+  apiUrl: ""  # Leave blank to auto-resolve to http://<release-name>-backend:8000
+
+  livenessProbe:
+    httpGet:
+      path: /
+      port: 3000
+    initialDelaySeconds: 20
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  readinessProbe:
+    httpGet:
+      path: /
+      port: 3000
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# ── Secrets ───────────────────────────────────────────────────────────────────
+# IMPORTANT: Do not commit real values here.
+# Pass via: --set secrets.geminiApiKey="..." --set secrets.kubeconfig="..."
+# Or use a sealed-secrets / external-secrets solution.
+secrets:
+  # Your Gemini API key (get one at https://aistudio.google.com/)
+  geminiApiKey: ""
+
+  # Your kubeconfig file content, base64-encoded.
+  # Generate with: cat ~/.kube/config | base64 | tr -d '\n'
+  # This is mounted at /app/kubeconfig/config inside the backend pod.
+  kubeconfig: ""
+
+  # Bearer token for the HTTP MCP server (port 8001).
+  # When set, MCP clients must send: Authorization: Bearer <token>
+  # Leave blank to run the MCP server without authentication (not recommended for production).
+  mcpAuthToken: ""
+
+# ── HTTP MCP server (port 8001) ───────────────────────────────────────────────
+# The same Docker image also runs an HTTP MCP server that Cursor, Claude Desktop,
+# and any other MCP-compatible client can connect to directly.
+#
+# Cursor config example (after enabling):
+#   "mcpServers": {
+#     "k8s-devops": {
+#       "type": "http",
+#       "url": "http://<node-ip>:<nodePort>/mcp/",
+#       "headers": { "Authorization": "Bearer <mcpAuthToken>" }
+#     }
+#   }
+mcp:
+  # Expose port 8001 via a NodePort or LoadBalancer so external clients can connect.
+  # Set to ClusterIP to keep it internal only (access via kubectl port-forward).
+  service:
+    type: ClusterIP      # Use NodePort or LoadBalancer for external IDE access
+    port: 8001
+    nodePort: ""         # Only used when type=NodePort (e.g. 30801)
+
+# ── ServiceAccount + RBAC ─────────────────────────────────────────────────────
+serviceAccount:
+  create: true
+  name: ""  # Auto-generated if blank
+  annotations: {}
+
+# RBAC: ClusterRole giving the backend read access to cluster resources.
+# Required so the ServiceAccount has an identity; also used if you ever
+# switch from kubeconfig-based to in-cluster kubectl access.
+rbac:
+  create: true
+
+# ── Ingress ───────────────────────────────────────────────────────────────────
+ingress:
+  enabled: false
+  className: "nginx"  # Change to your ingress controller class
+  annotations: {}
+    # nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    # nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+  # Frontend host — serves the chat UI
+  frontendHost: "k8s-devops.example.com"
+  # Backend host — serves the API (optional: use path-based routing instead)
+  backendHost: "k8s-devops-api.example.com"
+  tls: []
+  # - secretName: k8s-devops-tls
+  #   hosts:
+  #     - k8s-devops.example.com
+  #     - k8s-devops-api.example.com
+
+# ── Image pull secret (for private registries) ───────────────────────────────
+imagePullSecrets: []
+# - name: registry-pull-secret

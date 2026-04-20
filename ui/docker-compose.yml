@@ -1,0 +1,45 @@
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: ui/backend/Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../mcp:/app/mcp
+      - ~/.kube:/root/.kube:ro
+    env_file:
+      - ./backend/.env
+    environment:
+      MCP_PATH: /app/mcp
+      PYTHONPATH: /app/mcp
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    environment:
+      API_BASE_URL: http://backend:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  weaviate:
+    image: semitechnologies/weaviate:1.28.4
+    ports:
+      - "8080:8080"
+    environment:
+      QUERY_DEFAULTS_LIMIT: 20
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true"
+      PERSISTENCE_DATA_PATH: "/var/lib/weaviate"
+      DEFAULT_VECTORIZER_MODULE: "none"
+      CLUSTER_HOSTNAME: "node1"
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+    profiles:
+      - rag
+
+volumes:
+  weaviate_data:

@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: checkout-service
+  namespace: demo
+  labels:
+    app: checkout-service
+    scenario: imagepull
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: checkout-service
+  template:
+    metadata:
+      labels:
+        app: checkout-service
+        scenario: imagepull
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/your-org/checkout-service:v9.9.9-does-not-exist
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi

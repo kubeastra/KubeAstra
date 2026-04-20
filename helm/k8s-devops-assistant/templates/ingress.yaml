@@ -1,0 +1,73 @@
+{{- if .Values.ingress.enabled }}
+# Ingress — routes external traffic to frontend and backend services.
+# Enable with: --set ingress.enabled=true --set ingress.frontendHost=k8s-devops.example.com
+
+# ── Frontend Ingress ──────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "k8s-devops-assistant.fullname" . }}-frontend
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "k8s-devops-assistant.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    {{- toYaml .Values.ingress.tls | nindent 4 }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.frontendHost | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "k8s-devops-assistant.fullname" . }}-frontend
+                port:
+                  number: {{ .Values.frontend.service.port }}
+
+---
+# ── Backend Ingress (optional — expose API publicly) ─────────────────────────
+{{- if .Values.ingress.backendHost }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "k8s-devops-assistant.fullname" . }}-backend
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "k8s-devops-assistant.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    {{- toYaml .Values.ingress.tls | nindent 4 }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.backendHost | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "k8s-devops-assistant.backendServiceName" . }}
+                port:
+                  number: {{ .Values.backend.service.port }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,138 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "k8s-devops-assistant.fullname" . }}-backend
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "k8s-devops-assistant.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  replicas: {{ .Values.backend.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "k8s-devops-assistant.backend.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "k8s-devops-assistant.backend.selectorLabels" . | nindent 8 }}
+      annotations:
+        # Force pod restart when ConfigMap or Secret changes
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "k8s-devops-assistant.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      {{- if .Values.secrets.kubeconfig }}
+      # ── Init container: verify kubeconfig is readable ────────────────────
+      # Only runs when a kubeconfig Secret is provided. SSH-only deployments
+      # (no local cluster) can omit secrets.kubeconfig and skip this check.
+      initContainers:
+        - name: kubeconfig-check
+          image: bitnami/kubectl:latest
+          command: ["kubectl", "config", "view"]
+          env:
+            - name: KUBECONFIG
+              value: /app/kubeconfig/config
+          volumeMounts:
+            - name: kubeconfig
+              mountPath: /app/kubeconfig
+              readOnly: true
+      {{- end }}
+
+      containers:
+        - name: backend
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+            - name: mcp
+              containerPort: 8001
+              protocol: TCP
+
+          # ── Environment from ConfigMap ──────────────────────────────────────
+          envFrom:
+            - configMapRef:
+                name: {{ include "k8s-devops-assistant.fullname" . }}-config
+
+          # ── Secret env vars ────────────────────────────────────────────────
+          env:
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "k8s-devops-assistant.fullname" . }}-secrets
+                  key: GEMINI_API_KEY
+                  optional: true
+            - name: MCP_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "k8s-devops-assistant.fullname" . }}-secrets
+                  key: MCP_AUTH_TOKEN
+                  optional: true  # MCP server runs without auth when not set
+
+          # ── Volume mounts ──────────────────────────────────────────────────
+          volumeMounts:
+            {{- if .Values.secrets.kubeconfig }}
+            # kubeconfig mounted from Secret — kubectl subprocess uses KUBECONFIG env var
+            - name: kubeconfig
+              mountPath: /app/kubeconfig
+              readOnly: true
+            {{- end }}
+            # SQLite data directory — persistent if backend.persistence.enabled=true
+            - name: data
+              mountPath: {{ .Values.backend.persistence.mountPath }}
+
+          # ── Probes ─────────────────────────────────────────────────────────
+          livenessProbe:
+            {{- toYaml .Values.backend.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.backend.readinessProbe | nindent 12 }}
+
+          # ── Resources ─────────────────────────────────────────────────────
+          resources:
+            {{- toYaml .Values.backend.resources | nindent 12 }}
+
+          # ── Security context ───────────────────────────────────────────────
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false  # audit.log + deployment repo cache need writes
+            runAsNonRoot: true
+            runAsUser: 1000
+
+      # ── Volumes ──────────────────────────────────────────────────────────────
+      volumes:
+        {{- if .Values.secrets.kubeconfig }}
+        - name: kubeconfig
+          secret:
+            secretName: {{ include "k8s-devops-assistant.fullname" . }}-secrets
+            items:
+              - key: config
+                path: config
+                mode: 0400  # Read-only, owner only
+        {{- end }}
+        # SQLite data volume — PVC if persistence is enabled, emptyDir otherwise
+        - name: data
+          {{- if .Values.backend.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "k8s-devops-assistant.fullname" . }}-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+
+      {{- with .Values.backend.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.backend.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.backend.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

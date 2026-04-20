@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+*.pyc
+.env
+*.log
+.mypy_cache/
+.pytest_cache/
+.deployment-provisioning-cache/
+audit.log

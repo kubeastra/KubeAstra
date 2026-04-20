@@ -1,0 +1,81 @@
+# Frontend
+
+Next.js frontend for the K8s DevOps Web UI.
+
+This app provides the browser-based chat interface and now includes a **server-side API proxy** so browser requests go to same-origin `/api/*` routes on port `3000` instead of talking directly to the backend on port `8000`.
+
+## What Changed
+
+- Added `app/api/[...path]/route.ts` as a runtime proxy to the FastAPI backend
+- `lib/api.ts` now defaults to same-origin `/api/*` calls
+- The frontend uses `API_BASE_URL` at runtime instead of relying on a baked-in `NEXT_PUBLIC_API_URL`
+- Production builds no longer depend on embedding the final backend URL into the browser bundle
+- The legacy form dashboard API client was restored so `npm run build` succeeds
+
+## Runtime Flow
+
+```text
+Browser
+  -> http://localhost:3000/api/...
+  -> Next.js route handler (app/api/[...path]/route.ts)
+  -> API_BASE_URL + /api/...
+  -> FastAPI backend on port 8000
+```
+
+## Local Development
+
+From the repo root:
+
+```bash
+cd ui/frontend
+API_BASE_URL=http://localhost:8000 npm run dev
+```
+
+Open:
+
+- `http://localhost:3000/chat`
+
+The browser will call:
+
+- `http://localhost:3000/api/chat`
+- `http://localhost:3000/api/sessions/...`
+- `http://localhost:3000/api/health`
+
+The Next.js server then proxies those requests to the backend defined by `API_BASE_URL`.
+
+## Environment Variables
+
+```bash
+# Server-side proxy target
+API_BASE_URL=http://localhost:8000
+```
+
+Notes:
+
+- `API_BASE_URL` is read by the Next.js server, not by the browser
+- This means you can change the backend target at runtime without rebuilding the frontend image
+- `NEXT_PUBLIC_API_URL` is no longer required for the normal app flow
+
+## Important Files
+
+- [app/chat/page.tsx](/Users/pruthvidavineni/AI_DevOps_Assistant/k8s-devops-ai-assistant/ui/frontend/app/chat/page.tsx)
+  Main chat UI
+- [app/api/[...path]/route.ts](/Users/pruthvidavineni/AI_DevOps_Assistant/k8s-devops-ai-assistant/ui/frontend/app/api/[...path]/route.ts)
+  Runtime backend proxy
+- [lib/api.ts](/Users/pruthvidavineni/AI_DevOps_Assistant/k8s-devops-ai-assistant/ui/frontend/lib/api.ts)
+  Typed API client and legacy dashboard client shim
+- [Dockerfile](/Users/pruthvidavineni/AI_DevOps_Assistant/k8s-devops-ai-assistant/ui/frontend/Dockerfile)
+  Frontend image build
+
+## Verification
+
+```bash
+npm run lint
+npm run build
+```
+
+Expected:
+
+- lint passes
+- production build succeeds
+- `/api/[...path]` is listed as a dynamic route in the Next.js build output

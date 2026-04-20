@@ -1,0 +1,74 @@
+@import "tailwindcss";
+
+/* ── Brand tokens ─────────────────────────────────────────────────────────── */
+:root {
+  /* Primary — lime green accent */
+  --brand:        #8DC63F;
+  --brand-hover:  #9ED24F;
+  --brand-dim:    rgba(141, 198, 63, 0.10);
+  --brand-border: rgba(141, 198, 63, 0.25);
+
+  /* Backgrounds — deep black */
+  --bg-base:      #09090B;
+  --bg-surface:   #111113;
+  --bg-surface-2: #18181B;
+  --bg-surface-3: #1F1F23;
+
+  /* Borders */
+  --border:       #27272A;
+  --border-hover: #3F3F46;
+
+  /* Text */
+  --text-primary:   #FAFAFA;
+  --text-secondary: #A1A1AA;
+  --text-muted:     #52525B;
+
+  /* Semantic */
+  --success: #22C55E;
+  --warning: #F59E0B;
+  --danger:  #EF4444;
+
+  --background: var(--bg-base);
+  --foreground: var(--text-primary);
+}
+
+/* ── Force dark background — Tailwind preflight must not override ── */
+html,
+body {
+  background-color: #09090B !important;
+  color: #FAFAFA;
+  min-height: 100%;
+}
+
+/* ── Thin, elegant scrollbar ──────────────────────────────────────────────── */
+::-webkit-scrollbar       { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
+
+/* ── Utility classes ──────────────────────────────────────────────────────── */
+
+.app-btn-primary {
+  background: var(--brand);
+  color: #0a0a0a;
+  font-weight: 600;
+  transition: background 0.15s;
+}
+.app-btn-primary:hover:not(:disabled) { background: var(--brand-hover); }
+.app-btn-primary:disabled { background: var(--bg-surface-3); color: var(--text-muted); }
+
+.app-btn-ghost {
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  transition: border-color 0.15s, color 0.15s;
+}
+.app-btn-ghost:hover { border-color: var(--brand-border); color: var(--brand); }
+
+.app-input {
+  background: var(--bg-surface-3);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  transition: border-color 0.15s;
+}
+.app-input::placeholder { color: var(--text-muted); }
+.app-input:focus { outline: none; border-color: var(--brand); }

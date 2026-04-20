@@ -1,0 +1,132 @@
+<svg width="1800" height="1080" viewBox="0 0 1800 1080" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arrow" markerWidth="14" markerHeight="14" refX="11" refY="7" orient="auto" markerUnits="strokeWidth">
+      <path d="M1 1L11 7L1 13" stroke="#111827" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <style>
+      .title { font: 700 34px 'Inter', 'Segoe UI', sans-serif; fill: #111827; }
+      .subtitle { font: 500 16px 'Inter', 'Segoe UI', sans-serif; fill: #475569; }
+      .section { font: 700 15px 'Inter', 'Segoe UI', sans-serif; fill: #111827; letter-spacing: .04em; text-transform: uppercase; }
+      .label { font: 700 18px 'Inter', 'Segoe UI', sans-serif; fill: #111827; }
+      .body { font: 500 13px 'Inter', 'Segoe UI', sans-serif; fill: #475569; }
+      .caption { font: 500 18px 'Inter', 'Segoe UI', sans-serif; fill: #0F172A; font-style: italic; }
+    </style>
+  </defs>
+
+  <rect width="1800" height="1080" fill="#F8FAFC"/>
+
+  <text x="260" y="64" class="title">K8s DevOps AI Assistant Architecture</text>
+  <text x="260" y="96" class="subtitle">Icon-led view of the main runtime paths: browser UI, SSH override, MCP access, cluster access, and AI services.</text>
+
+  <rect x="180" y="130" width="1440" height="780" fill="#E5E7EB" stroke="#D1D5DB"/>
+
+  <text x="240" y="180" class="section">Clients</text>
+  <text x="730" y="180" class="section">Application + Shared Core</text>
+  <text x="1250" y="180" class="section">External Systems</text>
+
+  <rect x="240" y="250" width="220" height="130" rx="14" fill="#FFFFFF" stroke="#111827" stroke-width="1.5"/>
+  <rect x="320" y="272" width="60" height="42" rx="8" fill="#DBEAFE" stroke="#2563EB" stroke-width="2"/>
+  <rect x="328" y="320" width="44" height="6" rx="3" fill="#2563EB"/>
+  <circle cx="350" cy="293" r="6" fill="#2563EB"/>
+  <text x="305" y="352" class="label">Browser UI</text>
+  <text x="280" y="374" class="body">Normal chat workflow</text>
+
+  <rect x="240" y="430" width="220" height="130" rx="14" fill="#FFFFFF" stroke="#111827" stroke-width="1.5"/>
+  <rect x="315" y="458" width="70" height="42" rx="8" fill="#DCFCE7" stroke="#16A34A" stroke-width="2"/>
+  <path d="M332 472L347 480L332 488" stroke="#16A34A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="354" y1="488" x2="370" y2="488" stroke="#16A34A" stroke-width="3" stroke-linecap="round"/>
+  <text x="322" y="532" class="label">SSH Path</text>
+  <text x="268" y="554" class="body">Only for remote cluster access</text>
+
+  <rect x="240" y="610" width="220" height="130" rx="14" fill="#FFFFFF" stroke="#111827" stroke-width="1.5"/>
+  <rect x="323" y="635" width="54" height="54" rx="10" fill="#EDE9FE" stroke="#7C3AED" stroke-width="2"/>
+  <circle cx="338" cy="650" r="4" fill="#7C3AED"/>
+  <circle cx="362" cy="650" r="4" fill="#7C3AED"/>
+  <circle cx="350" cy="671" r="4" fill="#7C3AED"/>
+  <line x1="338" y1="650" x2="350" y2="671" stroke="#7C3AED" stroke-width="2"/>
+  <line x1="362" y1="650" x2="350" y2="671" stroke="#7C3AED" stroke-width="2"/>
+  <line x1="338" y1="650" x2="362" y2="650" stroke="#7C3AED" stroke-width="2"/>
+  <text x="300" y="712" class="label">Cursor MCP</text>
+  <text x="278" y="734" class="body">Alternate non-web entry point</text>
+
+  <rect x="560" y="230" width="260" height="150" rx="14" fill="#FFFFFF" stroke="#111827" stroke-width="1.5"/>
+  <circle cx="690" cy="286" r="34" fill="#F3F4F6" stroke="#111827" stroke-width="2"/>
+  <path d="M680 266H698L680 306H698" stroke="#111827" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="690" cy="286" r="3" fill="#111827"/>
+  <text x="629" y="338" class="label">Next.js Frontend</text>
+  <text x="600" y="360" class="body">Session state, chat UI, result rendering</text>
+
+  <rect x="900" y="230" width="280" height="150" rx="14" fill="#FFFFFF" stroke="#111827" stroke-width="1.5"/>
+  <rect x="1010" y="256" width="60" height="44" rx="8" fill="#E0F2FE" stroke="#0284C7" stroke-width="2"/>
+  <circle cx="1024" cy="278" r="4" fill="#0284C7"/>
+  <circle cx="1040" cy="278" r="4" fill="#0284C7"/>
+  <circle cx="1056" cy="278" r="4" fill="#0284C7"/>
+  <rect x="1020" y="308" width="40" height="6" rx="3" fill="#0284C7"/>
+  <text x="960" y="338" class="label">FastAPI Backend</text>
+  <text x="942" y="360" class="body">Routes requests, saves history, dispatches tools</text>
+
+  <rect x="700" y="470" width="360" height="200" rx="16" fill="#FFFFFF" stroke="#111827" stroke-width="2"/>
+  <rect x="842" y="500" width="76" height="76" rx="14" fill="#111827"/>
+  <circle cx="860" cy="518" r="7" fill="#F97316"/>
+  <circle cx="900" cy="518" r="7" fill="#8B5CF6"/>
+  <circle cx="860" cy="558" r="7" fill="#06B6D4"/>
+  <circle cx="900" cy="558" r="7" fill="#10B981"/>
+  <text x="781" y="618" class="label">Shared MCP Core</text>
+  <text x="756" y="642" class="body">mcp</text>
+  <text x="748" y="664" class="body">wrappers.py, ai_tools, llm_service</text>
+
+  <rect x="700" y="730" width="360" height="130" rx="14" fill="#FFFFFF" stroke="#111827" stroke-width="1.5"/>
+  <rect x="838" y="754" width="84" height="48" rx="10" fill="#111827"/>
+  <circle cx="860" cy="778" r="7" fill="#F97316"/>
+  <circle cx="900" cy="778" r="7" fill="#8B5CF6"/>
+  <circle cx="860" cy="794" r="7" fill="#06B6D4"/>
+  <circle cx="900" cy="794" r="7" fill="#10B981"/>
+  <text x="805" y="828" class="label">MCP Server</text>
+  <text x="752" y="850" class="body">stdio server + tool registry</text>
+
+  <rect x="1310" y="220" width="240" height="120" rx="14" fill="#FFFFFF" stroke="#111827" stroke-width="1.5"/>
+  <circle cx="1430" cy="268" r="32" fill="#DBEAFE" stroke="#2563EB" stroke-width="2"/>
+  <path d="M1430 242L1450 254V282L1430 294L1410 282V254L1430 242Z" fill="#3B82F6" stroke="#2563EB" stroke-width="2"/>
+  <path d="M1430 252L1442 259V275L1430 282L1418 275V259L1430 252Z" fill="#DBEAFE"/>
+  <text x="1356" y="318" class="label">Kubernetes</text>
+  <text x="1368" y="338" class="body">Local kubeconfig path</text>
+
+  <rect x="1310" y="400" width="240" height="120" rx="14" fill="#FFFFFF" stroke="#111827" stroke-width="1.5"/>
+  <rect x="1392" y="432" width="76" height="46" rx="8" fill="#DCFCE7" stroke="#16A34A" stroke-width="2"/>
+  <path d="M1408 446L1423 455L1408 464" stroke="#16A34A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="1430" y1="464" x2="1450" y2="464" stroke="#16A34A" stroke-width="3" stroke-linecap="round"/>
+  <text x="1345" y="498" class="label">Remote Node</text>
+  <text x="1364" y="518" class="body">SSH execution path</text>
+
+  <rect x="1310" y="580" width="240" height="120" rx="14" fill="#FFFFFF" stroke="#111827" stroke-width="1.5"/>
+  <circle cx="1430" cy="622" r="30" fill="#FEF3C7" stroke="#D97706" stroke-width="2"/>
+  <path d="M1420 632L1432 606L1440 624L1450 612" stroke="#D97706" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="1368" y="678" class="label">Gemini API</text>
+  <text x="1358" y="698" class="body">AI routing and diagnosis</text>
+
+  <rect x="1310" y="760" width="240" height="120" rx="14" fill="#FFFFFF" stroke="#111827" stroke-width="1.5"/>
+  <ellipse cx="1430" cy="802" rx="34" ry="12" fill="#BFDBFE" stroke="#2563EB" stroke-width="2"/>
+  <path d="M1396 802V822C1396 828 1411 832 1430 832C1449 832 1464 828 1464 822V802" fill="#DBEAFE" stroke="#2563EB" stroke-width="2"/>
+  <text x="1378" y="858" class="label">Weaviate</text>
+  <text x="1351" y="878" class="body">Optional vector similarity</text>
+
+  <line x1="460" y1="315" x2="560" y2="305" stroke="#111827" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <line x1="820" y1="305" x2="900" y2="305" stroke="#111827" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <line x1="1040" y1="380" x2="920" y2="470" stroke="#111827" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <line x1="460" y1="495" x2="700" y2="560" stroke="#111827" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <line x1="460" y1="665" x2="700" y2="790" stroke="#111827" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <line x1="1060" y1="560" x2="1310" y2="280" stroke="#111827" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <line x1="1060" y1="570" x2="1310" y2="460" stroke="#111827" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <line x1="1060" y1="590" x2="1310" y2="640" stroke="#111827" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <line x1="1060" y1="610" x2="1310" y2="820" stroke="#111827" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <rect x="520" y="900" width="180" height="44" rx="12" fill="#FFFFFF" stroke="#94A3B8"/>
+  <text x="546" y="927" class="body">Runs on every web chat turn</text>
+  <rect x="760" y="900" width="200" height="44" rx="12" fill="#FFFFFF" stroke="#94A3B8"/>
+  <text x="784" y="927" class="body">SSH path only when creds are sent</text>
+  <rect x="1020" y="900" width="180" height="44" rx="12" fill="#FFFFFF" stroke="#94A3B8"/>
+  <text x="1042" y="927" class="body">MCP path only in Cursor mode</text>
+
+  <text x="130" y="1008" class="caption">The web app and MCP server both converge into one shared Python core. That core chooses between local Kubernetes access, SSH-based remote execution, Gemini-powered analysis, and optional Weaviate similarity search.</text>
+</svg>

@@ -1,0 +1,19 @@
+{{- if .Values.backend.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "k8s-devops-assistant.fullname" . }}-data
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "k8s-devops-assistant.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  accessModes:
+    - {{ .Values.backend.persistence.accessMode | default "ReadWriteOnce" }}
+  {{- if .Values.backend.persistence.storageClass }}
+  storageClassName: {{ .Values.backend.persistence.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.backend.persistence.size | default "1Gi" }}
+{{- end }}

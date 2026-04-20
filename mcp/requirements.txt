@@ -1,0 +1,38 @@
+# Python 3.11+ required
+
+# ── Core ──────────────────────────────────────────────────────────────────────
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+
+# ── MCP SDK ───────────────────────────────────────────────────────────────────
+mcp>=0.9.0
+
+# ── HTTP MCP transport / local testing ────────────────────────────────────────
+fastapi>=0.100.0
+uvicorn[standard]>=0.23.0
+httpx>=0.27.0
+
+# ── Kubernetes / kubectl (SSH kubeconfig management) ─────────────────────────
+paramiko>=3.0.0
+
+# ── AI / Gemini ───────────────────────────────────────────────────────────────
+google-genai>=1.0.0
+
+# ── Vector DB (RAG) ───────────────────────────────────────────────────────────
+weaviate-client>=4.4.1
+
+# ── Embeddings ────────────────────────────────────────────────────────────────
+# CPU-only torch first so sentence-transformers doesn't pull the multi-GB CUDA build.
+# Without this constraint the image balloons to 5GB+ and nodes run out of ephemeral storage.
+torch>=2.0.0+cpu --extra-index-url https://download.pytorch.org/whl/cpu
+sentence-transformers>=2.3.1
+
+# ── Testing ───────────────────────────────────────────────────────────────────
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+
+# ── Type checking ─────────────────────────────────────────────────────────────
+mypy>=1.5.0
+types-python-dateutil>=2.8.0

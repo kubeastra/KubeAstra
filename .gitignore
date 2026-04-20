@@ -1,0 +1,57 @@
+# ── Archive (internal docs, not part of OSS repo) ─────────────────────────────
+archive/
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# ── Virtual environments ───────────────────────────────────────────────────────
+venv/
+.venv/
+env/
+
+# ── Environment / secrets ──────────────────────────────────────────────────────
+# Never commit real secrets. Copy .env.example → .env and fill in your values.
+.env
+.env.local
+.env.*.local
+
+# ── Runtime files ──────────────────────────────────────────────────────────────
+*.log
+audit.log
+
+# ── SQLite session data ────────────────────────────────────────────────────────
+*.db
+*.db-shm
+*.db-wal
+
+# ── Node.js / Next.js ─────────────────────────────────────────────────────────
+node_modules/
+.next/
+out/
+build/
+*.tsbuildinfo
+next-env.d.ts
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ── macOS ─────────────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ── Editor ────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Test / lint caches ─────────────────────────────────────────────────────────
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+coverage/
