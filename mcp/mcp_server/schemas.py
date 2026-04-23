@@ -66,6 +66,18 @@ class GetResourceGraphInput(BaseModel):
     )
 
 
+class InvestigateWorkloadInput(BaseModel):
+    """Input schema for investigate_workload tool."""
+    namespace: str = Field(description="Namespace containing the workload")
+    workload_name: str = Field(description="Name of the workload")
+    workload_type: str = Field(default="deployment", description="Type of workload (deployment, statefulset, daemonset)")
+    use_ai: bool = Field(default=True, description="Run Gemini AI analysis")
+
+class AnalyzeNamespaceInput(BaseModel):
+    """Input schema for analyze_namespace tool."""
+    namespace: str = Field(description="Namespace to analyze for holistic health")
+
+
 class DescribePodInput(BaseModel):
     """Input schema for describe_pod tool."""
     

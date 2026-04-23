@@ -2314,3 +2314,121 @@ def get_resource_graph(namespace: str) -> Dict[str, Any]:
             "edges": len(edges),
         },
     }
+
+def investigate_workload(
+    namespace: str,
+    workload_name: str,
+    workload_type: str = "deployment",
+    use_ai: bool = True
+) -> Dict[str, Any]:
+    """
+    Run an investigation for a workload (Deployment, StatefulSet, DaemonSet).
+    Gathers definition, related pods, events, and runs AI analysis if enabled.
+    """
+    namespace = validate_namespace(namespace)
+    workload_name = validate_resource_name(workload_name, workload_type)
+    
+    result: Dict[str, Any] = {
+        "success": True,
+        "namespace": namespace,
+        "workload_name": workload_name,
+        "workload_type": workload_type,
+        "steps_run": [],
+    }
+
+    runner = get_runner()
+    
+    # 1. Get the workload
+    try:
+        wl_json = runner.run_json(["get", workload_type, workload_name, "-o", "json"], namespace=namespace)
+        
+        # Strip large noisy fields
+        import json
+        if "managedFields" in wl_json.get("metadata", {}):
+            del wl_json["metadata"]["managedFields"]
+            
+        result["describe"] = json.dumps(wl_json, indent=2)
+        result["steps_run"].append(f"get_{workload_type}")
+    except KubectlError as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "namespace": namespace,
+            "workload_name": workload_name,
+            "operation": "investigate_workload",
+        }
+
+    # 2. Get related pods (via selector)
+    match_labels = wl_json.get("spec", {}).get("selector", {}).get("matchLabels", {})
+    if match_labels:
+        selector_str = ",".join(f"{k}={v}" for k, v in match_labels.items())
+        try:
+            pods_json = runner.run_json(["get", "pods", "-l", selector_str, "-o", "json"], namespace=namespace)
+            result["pods"] = pods_json.get("items", [])
+            result["steps_run"].append("get_pods")
+        except KubectlError:
+            result["pods"] = []
+    else:
+        result["pods"] = []
+
+    # 3. Get related events
+    try:
+        events_json = runner.run_json(
+            ["get", "events", "--field-selector", f"involvedObject.name={workload_name}", "-o", "json"],
+            namespace=namespace
+        )
+        result["events"] = events_json
+        result["steps_run"].append("get_events")
+    except KubectlError:
+        result["events"] = {}
+
+    # 4. AI Analysis
+    if use_ai and _ai_service_available and _llm_service:
+        try:
+            ai_result = _llm_service.analyze_workload_investigation(workload_name, namespace, result)
+            result["ai"] = ai_result
+            result["steps_run"].append("ai_analysis")
+        except Exception as e:
+            logger.warning(f"AI workload analysis failed: {e}")
+            result["ai"] = {"ai_enabled": False, "error": str(e)}
+    elif use_ai:
+        result["ai"] = {"ai_enabled": False, "message": "AI service not available"}
+
+    return result
+
+def analyze_namespace(namespace: str) -> Dict[str, Any]:
+    """
+    Holistic health check for a namespace. Combines resource overview with Warning events.
+    Passes data to Gemini to identify systemic/cascading failures.
+    """
+    namespace = validate_namespace(namespace)
+    
+    result: Dict[str, Any] = {
+        "success": True,
+        "namespace": namespace,
+        "steps_run": [],
+    }
+
+    # 1. Get resources overview
+    resources = list_namespace_resources(namespace)
+    result["resources"] = resources
+    result["steps_run"].append("list_namespace_resources")
+
+    # 2. Get warning events
+    events = get_events(namespace, field_selector="type=Warning")
+    result["events"] = events
+    result["steps_run"].append("get_events")
+
+    # 3. AI Analysis
+    if _ai_service_available and _llm_service:
+        try:
+            ai_result = _llm_service.analyze_namespace_health(namespace, resources, events)
+            result["ai"] = ai_result
+            result["steps_run"].append("ai_analysis")
+        except Exception as e:
+            logger.warning(f"AI namespace analysis failed: {e}")
+            result["ai"] = {"ai_enabled": False, "error": str(e)}
+    else:
+        result["ai"] = {"ai_enabled": False, "message": "AI service not available"}
+
+    return result

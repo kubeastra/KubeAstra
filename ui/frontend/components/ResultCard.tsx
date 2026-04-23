@@ -290,6 +290,97 @@ function renderInvestigate(r: Record<string, unknown>) {
   );
 }
 
+function renderInvestigateWorkload(r: Record<string, unknown>) {
+  return (
+    <>
+      <Section title="Investigation Target">
+        <div className="flex gap-2 items-center text-xs">
+          <Badge text={String(r.workload_type ?? "workload")} color="muted" />
+          <ResourceName>{String(r.workload_name ?? "")}</ResourceName>
+          <span style={{ color: "var(--text-muted)" }}>in namespace {String(r.namespace ?? "")}</span>
+        </div>
+      </Section>
+      
+      {r.pods && Array.isArray(r.pods) && (
+        <Section title={`Associated Pods (${r.pods.length})`}>
+          {r.pods.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs mt-2 border-collapse">
+                <thead>
+                  <tr className="text-left" style={{ color: "var(--text-muted)", borderBottom: "1px solid var(--border)" }}>
+                    <th className="pb-1 pr-4">Name</th>
+                    <th className="pb-1 pr-4">Status</th>
+                    <th className="pb-1 pr-4">Ready</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {r.pods.map((p: any, i) => {
+                    const status = String(p.status?.phase ?? "");
+                    const isOk = status === "Running";
+                    const isReady = p.status?.containerStatuses?.every((c: any) => c.ready) ? "True" : "False";
+                    return (
+                      <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}>
+                        <td className="py-1 pr-4 text-[11px] truncate max-w-[200px]"><ResourceName>{String(p.metadata?.name ?? "")}</ResourceName></td>
+                        <td className="py-1 pr-4 font-semibold text-xs" style={{ color: isOk ? "var(--success)" : "var(--warning)" }}>{status}</td>
+                        <td className="py-1 pr-4 text-xs" style={{ color: "var(--text-secondary)" }}>{isReady}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-xs italic mt-1" style={{ color: "var(--text-muted)" }}>No matching pods found</p>
+          )}
+        </Section>
+      )}
+
+      {r.ai && typeof r.ai === "object" && (() => {
+        const aiObj = r.ai as Record<string, unknown>;
+        if (!aiObj.ai_enabled) return null;
+        const analysis = aiObj.ai_analysis as Record<string, unknown> | null;
+        if (!analysis) return null;
+        return (
+          <Section title="AI Workload Analysis">
+            {renderAnalyzeError(analysis)}
+          </Section>
+        );
+      })()}
+    </>
+  );
+}
+
+function renderAnalyzeNamespace(r: Record<string, unknown>) {
+  return (
+    <>
+      <Section title="Namespace Health Check">
+        <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+          Analysis for namespace <ResourceName>{String(r.namespace ?? "")}</ResourceName>
+        </p>
+      </Section>
+
+      {r.ai && typeof r.ai === "object" && (() => {
+        const aiObj = r.ai as Record<string, unknown>;
+        if (!aiObj.ai_enabled) return null;
+        const analysis = aiObj.ai_analysis as Record<string, unknown> | null;
+        if (!analysis) return null;
+        return (
+          <Section title="Holistic AI Diagnosis">
+            {renderAnalyzeError(analysis)}
+          </Section>
+        );
+      })()}
+      
+      {r.resources && typeof r.resources === "object" && (
+        <div className="mt-4 border-t pt-4" style={{ borderColor: "var(--border)" }}>
+          <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--text-muted)" }}>Raw Resources</p>
+          {renderNamespaceResources(r.resources as Record<string, unknown>)}
+        </div>
+      )}
+    </>
+  );
+}
+
 function renderContextList(r: Record<string, unknown>) {
   const contexts = Array.isArray(r.contexts) ? r.contexts as Record<string, unknown>[] : [];
   const current = String(r.current_context ?? "");
@@ -612,6 +703,8 @@ export default function ResultCard({ tool, result }: Props) {
   let body: React.ReactNode;
   if (ANALYZE_TOOLS.includes(tool))         body = renderAnalyzeError(result);
   else if (tool === "investigate_pod")       body = renderInvestigate(result);
+  else if (tool === "investigate_workload")  body = renderInvestigateWorkload(result);
+  else if (tool === "analyze_namespace")     body = renderAnalyzeNamespace(result);
   else if (tool === "get_pods")             body = renderPodList(result);
   else if (tool === "get_pod_logs")         body = renderLogs(result);
   else if (tool === "get_events")           body = renderEvents(result);

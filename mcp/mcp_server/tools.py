@@ -32,7 +32,7 @@ from k8s.wrappers import (
     switch_kubeconfig_context, get_current_context, search_deployment_repo,
     get_deployment_repo_file, list_deployment_repo_path, investigate_pod,
     exec_pod_command, delete_pod, rollout_restart, scale_deployment, apply_patch,
-    get_resource_graph,
+    get_resource_graph, investigate_workload, analyze_namespace,
 )
 from k8s.validators import ValidationError
 from k8s.kubectl_runner import KubectlError
@@ -51,7 +51,7 @@ from mcp_server.schemas import (
     ListKubeconfigContextsInput, SwitchKubeconfigContextInput, GetCurrentContextInput,
     SearchDeploymentRepoInput, GetDeploymentRepoFileInput, ListDeploymentRepoPathInput,
     InvestigatePodInput, ExecPodCommandInput, DeletePodInput, RolloutRestartInput,
-    ScaleDeploymentInput, ApplyPatchInput,
+    ScaleDeploymentInput, ApplyPatchInput, InvestigateWorkloadInput, AnalyzeNamespaceInput,
     # AI tool schemas
     AnalyzeErrorInput, GetFixCommandsInput, ListErrorCategoriesInput,
     ClusterReportInput, ErrorSummaryInput, GenerateRunbookInput,
@@ -251,6 +251,24 @@ def register_tools(server: Server) -> None:
                 inputSchema=InvestigatePodInput.model_json_schema()
             ),
             Tool(
+                name="investigate_workload",
+                description=(
+                    "Investigate a Deployment or StatefulSet workload directly. "
+                    "Checks for scale-up issues, quota limitations, and controller-level events before checking pods. "
+                    "Use when a user asks to investigate a deployment, statefulset, or application as a whole."
+                ),
+                inputSchema=InvestigateWorkloadInput.model_json_schema()
+            ),
+            Tool(
+                name="analyze_namespace",
+                description=(
+                    "Perform a holistic health check on an entire namespace. "
+                    "Gathers all resources and recent warnings to identify cascading or systemic failures. "
+                    "Use when the user asks to check the health of a namespace or environment."
+                ),
+                inputSchema=AnalyzeNamespaceInput.model_json_schema()
+            ),
+            Tool(
                 name="exec_pod_command",
                 description=(
                     "Execute a command inside a pod container. WRITE OPERATION requiring user approval. "
@@ -444,6 +462,16 @@ def register_tools(server: Server) -> None:
                 return [TextContent(type="text", text=_fmt(investigate_pod(
                     inp.namespace, inp.pod_name, inp.tail, inp.use_ai
                 )))]
+
+            elif name == "investigate_workload":
+                inp = InvestigateWorkloadInput(**arguments)
+                return [TextContent(type="text", text=_fmt(investigate_workload(
+                    inp.namespace, inp.workload_name, inp.workload_type, inp.use_ai
+                )))]
+
+            elif name == "analyze_namespace":
+                inp = AnalyzeNamespaceInput(**arguments)
+                return [TextContent(type="text", text=_fmt(analyze_namespace(inp.namespace)))]
 
             elif name == "exec_pod_command":
                 inp = ExecPodCommandInput(**arguments)

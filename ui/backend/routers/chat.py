@@ -112,6 +112,8 @@ Available tools and when to use them:
 19. list_services            — user asks to list/show services in a namespace (no specific service name given)
 20. get_resource_graph       — user wants to visualize / draw / map / see the topology of a namespace
                                (Ingress → Service → Deployment → Pod relationships)
+21. investigate_workload     — user asks to investigate, debug, or triage a specific deployment, statefulset, or daemonset
+22. analyze_namespace        — user asks for a holistic health check, analysis, or systemic issue check of a namespace
 
 CRITICAL ROUTING RULES:
 
@@ -205,6 +207,8 @@ Parameter extraction rules:
 - For list_namespace_resources: params = { "namespace": "<ns>" }
 - For list_services: params = { "namespace": "<ns>" }
 - For get_resource_graph: params = { "namespace": "<ns>" }
+- For investigate_workload: params = { "namespace": "<ns if stated>", "workload_name": "<name>", "workload_type": "deployment", "use_ai": true }
+- For analyze_namespace: params = { "namespace": "<ns>" }
 
 If the message is a general question or greeting that doesn't map to a tool,
 respond with: { "tool": "none", "params": {}, "explanation": "<friendly response to the user>" }"""
@@ -346,6 +350,19 @@ def _dispatch_inner(tool: str, params: dict) -> dict:
             tail=params.get("tail", 200),
             use_ai=params.get("use_ai", True),
         )
+
+    elif tool == "investigate_workload":
+        from k8s.wrappers import investigate_workload
+        return investigate_workload(
+            ns,
+            params.get("workload_name", ""),
+            params.get("workload_type", "deployment"),
+            use_ai=params.get("use_ai", True)
+        )
+
+    elif tool == "analyze_namespace":
+        from k8s.wrappers import analyze_namespace
+        return analyze_namespace(ns)
 
     elif tool == "get_pods":
         from k8s.wrappers import get_pods
@@ -551,6 +568,26 @@ def _keyword_route(message: str, history: list = None) -> dict:
         return {"tool": "analyze_error", "params": {"error_text": message},
                 "explanation": "Detected a pasted error — analyzing with AI"}
 
+    # ── Namespace Analysis ──────────────────────────────────────────────────
+    if re.search(r"analyze|health|holistic", msg) and re.search(r"namespace", msg):
+        ns_match = re.search(r"namespace[:\s]+(\S+)|(of|health\s+of)\s+([a-z0-9-]+)", msg)
+        ns = (ns_match.group(1) or ns_match.group(3)) if ns_match else "default"
+        # Avoid matching "analyze error" which is handled earlier
+        if "error" not in msg:
+            return {"tool": "analyze_namespace", "params": {"namespace": ns},
+                    "explanation": f"Analyzing health of namespace '{ns}'"}
+
+    # ── Workload investigation ──────────────────────────────────────────────
+    if re.search(r"investigate|triage|debug|diagnose", msg) and not re.search(r"pod", msg):
+        ns_match = re.search(r"(?:namespace[:\s]+(\S+)|in\s+([a-z0-9-]+)\s+namespace)", msg)
+        wl_match = re.search(r"(?:deployment|statefulset|daemonset|workload|app|application)[:\s]+(\S+)|investigate\s+(\S+)", msg)
+        wl = (wl_match.group(1) or wl_match.group(2)) if wl_match else ""
+        if wl and wl not in ["pod", "namespace"]:
+            ns = (ns_match.group(1) or ns_match.group(2)) if ns_match else "default"
+            return {"tool": "investigate_workload", 
+                    "params": {"namespace": ns, "workload_name": wl, "workload_type": "deployment", "use_ai": True},
+                    "explanation": f"Investigating workload '{wl}' in '{ns}'"}
+
     # ── Pod investigation ───────────────────────────────────────────────────
     if re.search(r"investigate|triage|debug|diagnose", msg):
         ns_match = re.search(r"(?:namespace[:\s]+(\S+)|in\s+([a-z0-9-]+)\s+namespace)", msg)
@@ -732,6 +769,8 @@ def _friendly_summary(tool: str, result: dict, explanation: str) -> str:
         "list_namespace_resources": "Here are all resources in the namespace:",
         "list_services": "Here are the services in the namespace:",
         "get_resource_graph": "Here is the resource graph for the namespace:",
+        "investigate_workload": "Here's the workload investigation:",
+        "analyze_namespace": "Here's the namespace health report:",
     }
     return summaries.get(tool, explanation)
 
@@ -744,6 +783,7 @@ _SYNTHESIZE_TOOLS = {
     "get_endpoints", "get_rollout_status", "find_workload",
     "list_namespace_resources", "list_services", "get_namespaces",
     "get_pod_logs", "list_contexts", "investigate_pod",
+    "investigate_workload", "analyze_namespace",
 }
 
 

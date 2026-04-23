@@ -208,6 +208,126 @@ Format the runbook as:
         except LLMProviderError as e:
             return f"Runbook generation failed: {e}"
 
+    
+    def analyze_workload_investigation(self, workload_name: str, namespace: str,
+                                       investigation_data: dict) -> dict:
+        """Analyze workload (Deployment/StatefulSet) investigation data and provide AI diagnosis."""
+        if not self._provider.enabled:
+            return {"ai_analysis": None, "ai_enabled": False,
+                    "message": self._not_configured_message()}
+
+        workload_type = investigation_data.get("workload_type", "workload")
+        describe_raw = investigation_data.get("describe", "")[:3000]
+        
+        pods = investigation_data.get("pods", [])
+        pods_text = "\n".join([
+            f"- {p.get('metadata', {}).get('name', 'unknown')}: {p.get('status', {}).get('phase', 'unknown')}"
+            for p in pods[:20]
+        ])
+
+        events = investigation_data.get("events", {}).get("items", [])
+        events_text = "\n".join([
+            f"[{e.get('type','')}] {e.get('reason','')} - {e.get('message','')}"
+            for e in events[:20]
+        ])
+
+        prompt = f"""You are investigating a Kubernetes {workload_type} failure. Here is the LIVE cluster data:
+
+Workload: {workload_name}
+Namespace: {namespace}
+Type: {workload_type}
+
+--- kubectl get {workload_type} -o json (truncated) ---
+{describe_raw}
+
+--- Associated Pods (up to 20) ---
+{pods_text if pods_text else "No pods found matching selector"}
+
+--- Recent Events for {workload_type} ---
+{events_text if events_text else "No events"}
+
+Based on this LIVE cluster data, provide:
+1. Root cause diagnosis (why are the pods failing, or why is it not scaling/rolling out?)
+2. Step-by-step fix commands
+3. Prevention recommendations
+
+Respond ONLY with valid JSON matching this schema:
+{{
+    "root_cause": "...",
+    "solution": "...",
+    "steps": ["..."],
+    "commands": [{{"cmd": "...", "description": "..."}}],
+    "prevention": "...",
+    "severity": "critical|high|medium|low",
+    "confidence": 0.9,
+    "category": "..."
+}}"""
+
+        try:
+            text = self._provider.generate(prompt, system=SYSTEM_PROMPT, temperature=0.2)
+            parsed = self._parse(text)
+            return {"ai_analysis": parsed, "ai_enabled": True}
+        except LLMProviderError as e:
+            logger.error(f"{self._provider.name} workload analysis error: {e}")
+            return {"ai_analysis": None, "ai_enabled": True,
+                    "error": f"AI analysis failed: {e}"}
+
+    def analyze_namespace_health(self, namespace: str, resources: dict, events_data: dict) -> dict:
+        """Analyze a holistic namespace overview and provide an AI health report."""
+        if not self._provider.enabled:
+            return {"ai_analysis": None, "ai_enabled": False,
+                    "message": self._not_configured_message()}
+
+        # Summarize resources
+        summary = []
+        for kind, items in resources.items():
+            if kind == "success": continue
+            count = len(items) if isinstance(items, list) else 0
+            if count > 0:
+                summary.append(f"- {count} {kind}")
+        resources_text = "\n".join(summary)
+
+        # Summarize events
+        events = events_data.get("events", [])
+        events_text = "\n".join([
+            f"[{e.get('type','')}] {e.get('involvedObject', {}).get('kind','')} {e.get('involvedObject', {}).get('name','')}: {e.get('reason','')} - {e.get('message','')}"
+            for e in events[:30]
+        ])
+
+        prompt = f"""You are performing a holistic health check on a Kubernetes namespace.
+
+Namespace: {namespace}
+
+--- Resource Summary ---
+{resources_text if resources_text else "No resources found"}
+
+--- Recent Warning Events (up to 30) ---
+{events_text if events_text else "No warning events"}
+
+Analyze the namespace health. Correlate any warning events to identify systemic, cascading, or configuration failures across the namespace.
+If there are no warnings, the health is likely good, but still summarize the state.
+
+Respond ONLY with valid JSON matching this schema:
+{{
+    "root_cause": "A summary of the systemic health or main issues",
+    "solution": "Actionable advice for fixing the identified issues",
+    "steps": ["..."],
+    "commands": [{{"cmd": "...", "description": "..."}}],
+    "prevention": "...",
+    "severity": "critical|high|medium|low",
+    "confidence": 0.9,
+    "category": "..."
+}}"""
+
+        try:
+            text = self._provider.generate(prompt, system=SYSTEM_PROMPT, temperature=0.2)
+            parsed = self._parse(text)
+            return {"ai_analysis": parsed, "ai_enabled": True}
+        except LLMProviderError as e:
+            logger.error(f"{self._provider.name} namespace health analysis error: {e}")
+            return {"ai_analysis": None, "ai_enabled": True,
+                    "error": f"AI analysis failed: {e}"}
+
     def _parse(self, text: str) -> dict:
         cleaned = (text or "").strip()
         if "```" in cleaned:
