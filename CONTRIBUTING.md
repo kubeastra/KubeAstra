@@ -9,8 +9,8 @@ Thanks for your interest in contributing! Whether you're fixing a bug, adding a 
 ### 1. Fork and Clone
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/k8s-devops-ai-assistant.git
-cd k8s-devops-ai-assistant
+git clone https://github.com/YOUR_USERNAME/kubeastra.git
+cd kubeastra
 ```
 
 ### 2. Set Up Your Development Environment
@@ -91,7 +91,7 @@ Open an issue with the `feature-request` label. Include:
 Understanding where things live will help you contribute to the right place:
 
 ```
-k8s-devops-ai-assistant/
+kubeastra/
 ├── mcp/              # Core engine — all K8s tools and AI logic
 │   ├── k8s/
 │   │   ├── wrappers.py          # High-level kubectl workflows (the main API)
@@ -111,7 +111,7 @@ k8s-devops-ai-assistant/
 │   │   ├── routers/sessions.py  # Session history + SSH target APIs
 │   │   └── db.py                # SQLite persistence
 │   └── frontend/                # Next.js chat interface
-├── helm/k8s-devops-assistant/   # Helm chart
+├── helm/kubeastra/   # Helm chart
 ├── demo/                        # kind config + broken workloads for `make demo`
 └── docs/                        # Architecture, deployment guide, runbooks
 ```
@@ -125,7 +125,7 @@ k8s-devops-ai-assistant/
 | Add a new LLM provider | `mcp/services/llm/` (see `base.py` for the interface) |
 | Fix chat routing or intent classification | `ui/backend/routers/chat.py` |
 | Update the web interface | `ui/frontend/` (Next.js + TypeScript) |
-| Modify the Helm deployment | `helm/k8s-devops-assistant/` |
+| Modify the Helm deployment | `helm/kubeastra/` |
 | Add broken workloads to the demo | `demo/broken-workloads/` |
 
 ---

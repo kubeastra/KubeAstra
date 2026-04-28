@@ -1,7 +1,7 @@
 .PHONY: help demo demo-down demo-clean demo-status
 
 help:
-	@echo "k8s-devops-ai-assistant"
+	@echo "kubeastra"
 	@echo ""
 	@echo "  make demo         Spin up kind cluster + broken workloads + web UI"
 	@echo "  make demo-status  Show pod status in the demo namespace"

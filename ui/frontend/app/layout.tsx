@@ -5,7 +5,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: "K8s DevOps Assistant",
+  title: "Kubeastra",
   description: "AI-powered Kubernetes assistant — ask a question or paste an error.",
 };
 

@@ -1,12 +1,12 @@
 #!/bin/bash
-# One-command local setup for K8s DevOps Web UI (no Docker required)
+# One-command local setup for Kubeastra Web UI (no Docker required)
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MCP_DIR="$(cd "$SCRIPT_DIR/../mcp" && pwd)"
 
 echo "==========================================="
-echo "  K8s DevOps Web UI — Local Setup"
+echo "  Kubeastra Web UI — Local Setup"
 echo "==========================================="
 
 # ── Check dependencies ────────────────────────────────────────────────────────
@@ -77,7 +77,7 @@ cat > "$SCRIPT_DIR/start.sh" << STARTEOF
 SCRIPT_DIR="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
 MCP_DIR="\$(cd "\$SCRIPT_DIR/../mcp" && pwd)"
 
-echo "Starting K8s DevOps Web UI..."
+echo "Starting Kubeastra Web UI..."
 
 # Start backend
 cd "\$SCRIPT_DIR/backend"

@@ -23,9 +23,10 @@ google-genai>=1.0.0
 weaviate-client>=4.4.1
 
 # ── Embeddings ────────────────────────────────────────────────────────────────
-# CPU-only torch first so sentence-transformers doesn't pull the multi-GB CUDA build.
-# Without this constraint the image balloons to 5GB+ and nodes run out of ephemeral storage.
-torch>=2.0.0+cpu --extra-index-url https://download.pytorch.org/whl/cpu
+# torch is needed by sentence-transformers. On Linux Docker builds we pre-install
+# the CPU-only wheel separately (see Dockerfile) to avoid pulling the 2GB+ CUDA
+# build. On macOS pip picks the native (MPS-enabled) wheel automatically.
+torch>=2.0.0
 sentence-transformers>=2.3.1
 
 # ── Testing ───────────────────────────────────────────────────────────────────

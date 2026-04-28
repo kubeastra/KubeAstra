@@ -62,7 +62,7 @@ export default function Sidebar({ active, onChange, health }: Props) {
       <div className="px-5 py-5 border-b border-gray-800">
         <div className="flex items-center gap-2 mb-1">
           <Activity size={20} className="text-blue-400" />
-          <span className="font-bold text-white text-sm tracking-wide">K8s DevOps</span>
+          <span className="font-bold text-white text-sm tracking-wide">Kubeastra</span>
         </div>
         <p className="text-gray-500 text-xs">Team Self-Service Portal</p>
       </div>

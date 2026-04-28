@@ -6,7 +6,7 @@ Spin up a local Kubernetes cluster pre-seeded with realistic broken workloads so
 
 ## What you get
 
-- A two-node [kind](https://kind.sigs.k8s.io/) cluster (`k8s-devops-demo`)
+- A two-node [kind](https://kind.sigs.k8s.io/) cluster (`kubeastra-demo`)
 - A `demo` namespace containing six intentionally-broken workloads covering the most common Kubernetes failure modes
 - The web UI running locally at http://localhost:3000, already pointed at the demo cluster
 
@@ -84,7 +84,7 @@ If you prefer to drive things yourself:
 
 ```bash
 # Cluster
-kind create cluster --name k8s-devops-demo --config demo/kind-config.yaml
+kind create cluster --name kubeastra-demo --config demo/kind-config.yaml
 
 # Workloads
 kubectl apply -f demo/broken-workloads/

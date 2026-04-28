@@ -1,8 +1,8 @@
-// ── K8s DevOps Assistant — Jenkins Pipeline ──────────────────────────────────
+// ── Kubeastra — Jenkins Pipeline ──────────────────────────────────
 //
 // Builds and pushes two Docker images to your container registry:
-//   <REGISTRY>/<FEED>/k8s-devops-backend:<tag>
-//   <REGISTRY>/<FEED>/k8s-devops-frontend:<tag>
+//   <REGISTRY>/<FEED>/kubeastra-backend:<tag>
+//   <REGISTRY>/<FEED>/kubeastra-frontend:<tag>
 //
 // Required Jenkins credentials (Manage Jenkins → Credentials):
 //   docker-registry-credentials  — Username/Password or Secret Text (registry API key)
@@ -19,9 +19,9 @@ pipeline {
 
     environment {
         REGISTRY      = 'ghcr.io/your-org'
-        FEED          = 'k8s-devops-assistant'
-        BACKEND_IMAGE = "${REGISTRY}/${FEED}/k8s-devops-backend"
-        FRONTEND_IMAGE = "${REGISTRY}/${FEED}/k8s-devops-frontend"
+        FEED          = 'kubeastra'
+        BACKEND_IMAGE = "${REGISTRY}/${FEED}/kubeastra-backend"
+        FRONTEND_IMAGE = "${REGISTRY}/${FEED}/kubeastra-frontend"
     }
 
     parameters {
@@ -103,8 +103,8 @@ pipeline {
 ╚══════════════════════════════════════════════════════════════╝
 
 To deploy with Helm:
-  helm upgrade --install k8s-devops helm/k8s-devops-assistant \\
-    --namespace k8s-devops --create-namespace \\
+  helm upgrade --install kubeastra helm/kubeastra \\
+    --namespace kubeastra --create-namespace \\
     --set backend.image.repository=${BACKEND_IMAGE} \\
     --set backend.image.tag=${IMAGE_TAG} \\
     --set frontend.image.repository=${FRONTEND_IMAGE} \\

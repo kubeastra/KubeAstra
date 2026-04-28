@@ -1,6 +1,6 @@
 # Frontend
 
-Next.js frontend for the K8s DevOps Web UI.
+Next.js frontend for the Kubeastra Web UI.
 
 This app provides the browser-based chat interface and now includes a **server-side API proxy** so browser requests go to same-origin `/api/*` routes on port `3000` instead of talking directly to the backend on port `8000`.
 
@@ -58,13 +58,13 @@ Notes:
 
 ## Important Files
 
-- [app/chat/page.tsx](/Users/pruthvidavineni/AI_DevOps_Assistant/k8s-devops-ai-assistant/ui/frontend/app/chat/page.tsx)
+- [app/chat/page.tsx](/path/to/kubeastra/ui/frontend/app/chat/page.tsx)
   Main chat UI
-- [app/api/[...path]/route.ts](/Users/pruthvidavineni/AI_DevOps_Assistant/k8s-devops-ai-assistant/ui/frontend/app/api/[...path]/route.ts)
+- [app/api/[...path]/route.ts](/path/to/kubeastra/ui/frontend/app/api/[...path]/route.ts)
   Runtime backend proxy
-- [lib/api.ts](/Users/pruthvidavineni/AI_DevOps_Assistant/k8s-devops-ai-assistant/ui/frontend/lib/api.ts)
+- [lib/api.ts](/path/to/kubeastra/ui/frontend/lib/api.ts)
   Typed API client and legacy dashboard client shim
-- [Dockerfile](/Users/pruthvidavineni/AI_DevOps_Assistant/k8s-devops-ai-assistant/ui/frontend/Dockerfile)
+- [Dockerfile](/path/to/kubeastra/ui/frontend/Dockerfile)
   Frontend image build
 
 ## Verification

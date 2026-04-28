@@ -39,7 +39,7 @@ There is no second tool implementation for HTTP mode.
 ## Quick Start
 
 ```bash
-cd k8s-devops-ai-assistant/mcp
+cd kubeastra/mcp
 ./setup.sh          # first time only
 make run-http       # starts on 127.0.0.1:8001/mcp/
 ```
@@ -69,7 +69,7 @@ Edit `~/.cursor/mcp.json`:
 ```json
 {
   "mcpServers": {
-    "k8s-devops-http": {
+    "kubeastra-http": {
       "type": "http",
       "url": "http://127.0.0.1:8001/mcp/"
     }
@@ -84,11 +84,11 @@ You can run both stdio and HTTP at the same time (Cursor will deduplicate tools 
 ```json
 {
   "mcpServers": {
-    "k8s-devops": {
+    "kubeastra": {
       "command": "/path/to/venv/bin/python",
       "args": ["/path/to/mcp_server/server.py"]
     },
-    "k8s-devops-http": {
+    "kubeastra-http": {
       "type": "http",
       "url": "http://127.0.0.1:8001/mcp/"
     }
@@ -106,7 +106,7 @@ make run-http
 ```json
 {
   "mcpServers": {
-    "k8s-devops-http": {
+    "kubeastra-http": {
       "type": "http",
       "url": "http://127.0.0.1:8001/mcp/",
       "headers": {

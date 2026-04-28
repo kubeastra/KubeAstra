@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "k8s-devops-assistant.backendServiceName" . }}
+  name: {{ include "kubeastra.backendServiceName" . }}
   namespace: {{ .Values.namespace }}
   labels:
-    {{- include "k8s-devops-assistant.labels" . | nindent 4 }}
+    {{- include "kubeastra.labels" . | nindent 4 }}
     app.kubernetes.io/component: backend
 spec:
   type: {{ .Values.backend.service.type }}
@@ -14,4 +14,4 @@ spec:
       protocol: TCP
       name: http
   selector:
-    {{- include "k8s-devops-assistant.backend.selectorLabels" . | nindent 4 }}
+    {{- include "kubeastra.backend.selectorLabels" . | nindent 4 }}

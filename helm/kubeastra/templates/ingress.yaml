@@ -1,15 +1,15 @@
 {{- if .Values.ingress.enabled }}
 # Ingress — routes external traffic to frontend and backend services.
-# Enable with: --set ingress.enabled=true --set ingress.frontendHost=k8s-devops.example.com
+# Enable with: --set ingress.enabled=true --set ingress.frontendHost=kubeastra.example.com
 
 # ── Frontend Ingress ──────────────────────────────────────────────────────────
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "k8s-devops-assistant.fullname" . }}-frontend
+  name: {{ include "kubeastra.fullname" . }}-frontend
   namespace: {{ .Values.namespace }}
   labels:
-    {{- include "k8s-devops-assistant.labels" . | nindent 4 }}
+    {{- include "kubeastra.labels" . | nindent 4 }}
     app.kubernetes.io/component: frontend
   {{- with .Values.ingress.annotations }}
   annotations:
@@ -31,7 +31,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: {{ include "k8s-devops-assistant.fullname" . }}-frontend
+                name: {{ include "kubeastra.fullname" . }}-frontend
                 port:
                   number: {{ .Values.frontend.service.port }}
 
@@ -41,10 +41,10 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "k8s-devops-assistant.fullname" . }}-backend
+  name: {{ include "kubeastra.fullname" . }}-backend
   namespace: {{ .Values.namespace }}
   labels:
-    {{- include "k8s-devops-assistant.labels" . | nindent 4 }}
+    {{- include "kubeastra.labels" . | nindent 4 }}
     app.kubernetes.io/component: backend
   {{- with .Values.ingress.annotations }}
   annotations:
@@ -66,7 +66,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: {{ include "k8s-devops-assistant.backendServiceName" . }}
+                name: {{ include "kubeastra.backendServiceName" . }}
                 port:
                   number: {{ .Values.backend.service.port }}
 {{- end }}

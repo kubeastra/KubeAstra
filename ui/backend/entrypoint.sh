@@ -9,7 +9,7 @@
 
 set -e
 
-echo "[entrypoint] Starting K8s DevOps Assistant"
+echo "[entrypoint] Starting Kubeastra"
 echo "[entrypoint]   Chat backend  → :8000"
 echo "[entrypoint]   HTTP MCP      → :8001 (path: /mcp/)"
 if [ -n "$MCP_AUTH_TOKEN" ]; then

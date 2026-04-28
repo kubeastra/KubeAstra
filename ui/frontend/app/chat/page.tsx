@@ -501,7 +501,7 @@ export default function ChatPage() {
           <span className="w-px h-6 shrink-0" style={{ background: "var(--border)" }} />
           <div>
             <p className="text-xs font-medium leading-none" style={{ color: "var(--text-secondary)" }}>
-              K8s DevOps Assistant
+              Kubeastra
             </p>
             <p className="text-[10px] mt-0.5 leading-none" style={{ color: "var(--text-muted)" }}>
               Paste an error or ask a question

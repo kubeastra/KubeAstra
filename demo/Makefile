@@ -1,12 +1,12 @@
 .PHONY: help up down clean status workloads cluster ui logs
 
-CLUSTER_NAME := k8s-devops-demo
+CLUSTER_NAME := kubeastra-demo
 KIND_CONFIG  := kind-config.yaml
 WORKLOADS    := broken-workloads/
 UI_DIR       := ../ui
 
 help:
-	@echo "k8s-devops-ai-assistant — demo"
+	@echo "kubeastra — demo"
 	@echo ""
 	@echo "  make up         Full demo: kind cluster + broken workloads + web UI"
 	@echo "  make cluster    Create the kind cluster only"

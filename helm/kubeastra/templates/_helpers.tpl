@@ -1,7 +1,7 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "k8s-devops-assistant.name" -}}
+{{- define "kubeastra.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
@@ -9,7 +9,7 @@ Expand the name of the chart.
 Create a default fully qualified app name.
 Truncate at 63 chars because some Kubernetes name fields are limited.
 */}}
-{{- define "k8s-devops-assistant.fullname" -}}
+{{- define "kubeastra.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -25,16 +25,16 @@ Truncate at 63 chars because some Kubernetes name fields are limited.
 {{/*
 Create chart label.
 */}}
-{{- define "k8s-devops-assistant.chart" -}}
+{{- define "kubeastra.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Common labels applied to all resources.
 */}}
-{{- define "k8s-devops-assistant.labels" -}}
-helm.sh/chart: {{ include "k8s-devops-assistant.chart" . }}
-{{ include "k8s-devops-assistant.selectorLabels" . }}
+{{- define "kubeastra.labels" -}}
+helm.sh/chart: {{ include "kubeastra.chart" . }}
+{{ include "kubeastra.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -44,16 +44,16 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{/*
 Selector labels — used in matchLabels and pod template labels.
 */}}
-{{- define "k8s-devops-assistant.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "k8s-devops-assistant.name" . }}
+{{- define "kubeastra.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "kubeastra.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
 Backend-specific selector labels.
 */}}
-{{- define "k8s-devops-assistant.backend.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "k8s-devops-assistant.name" . }}-backend
+{{- define "kubeastra.backend.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "kubeastra.name" . }}-backend
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/component: backend
 {{- end }}
@@ -61,8 +61,8 @@ app.kubernetes.io/component: backend
 {{/*
 Frontend-specific selector labels.
 */}}
-{{- define "k8s-devops-assistant.frontend.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "k8s-devops-assistant.name" . }}-frontend
+{{- define "kubeastra.frontend.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "kubeastra.name" . }}-frontend
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/component: frontend
 {{- end }}
@@ -70,9 +70,9 @@ app.kubernetes.io/component: frontend
 {{/*
 ServiceAccount name.
 */}}
-{{- define "k8s-devops-assistant.serviceAccountName" -}}
+{{- define "kubeastra.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create }}
-{{- default (include "k8s-devops-assistant.fullname" .) .Values.serviceAccount.name }}
+{{- default (include "kubeastra.fullname" .) .Values.serviceAccount.name }}
 {{- else }}
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
@@ -81,17 +81,17 @@ ServiceAccount name.
 {{/*
 Backend service name — used by the frontend to build the API URL.
 */}}
-{{- define "k8s-devops-assistant.backendServiceName" -}}
-{{- printf "%s-backend" (include "k8s-devops-assistant.fullname" .) }}
+{{- define "kubeastra.backendServiceName" -}}
+{{- printf "%s-backend" (include "kubeastra.fullname" .) }}
 {{- end }}
 
 {{/*
 Frontend API URL — auto-resolved to in-cluster backend service unless overridden.
 */}}
-{{- define "k8s-devops-assistant.frontendApiUrl" -}}
+{{- define "kubeastra.frontendApiUrl" -}}
 {{- if .Values.frontend.apiUrl }}
 {{- .Values.frontend.apiUrl }}
 {{- else }}
-{{- printf "http://%s:%d" (include "k8s-devops-assistant.backendServiceName" .) (.Values.backend.service.port | int) }}
+{{- printf "http://%s:%d" (include "kubeastra.backendServiceName" .) (.Values.backend.service.port | int) }}
 {{- end }}
 {{- end }}

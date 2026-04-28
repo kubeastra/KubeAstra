@@ -1,6 +1,6 @@
 # Backend
 
-FastAPI backend for the K8s DevOps Web UI.
+FastAPI backend for the Kubeastra Web UI.
 
 This service exposes the REST API used by the Next.js frontend and imports logic directly from `mcp` so there is no duplicated Kubernetes or AI execution layer.
 
@@ -32,15 +32,15 @@ Browser
 
 ## Key Files
 
-- [main.py](/Users/pruthvidavineni/AI_DevOps_Assistant/k8s-devops-ai-assistant/ui/backend/main.py)
+- [main.py](/path/to/kubeastra/ui/backend/main.py)
   App setup, middleware, request logging, lifespan init
-- [db.py](/Users/pruthvidavineni/AI_DevOps_Assistant/k8s-devops-ai-assistant/ui/backend/db.py)
+- [db.py](/path/to/kubeastra/ui/backend/db.py)
   SQLite persistence
-- [routers/chat.py](/Users/pruthvidavineni/AI_DevOps_Assistant/k8s-devops-ai-assistant/ui/backend/routers/chat.py)
+- [routers/chat.py](/path/to/kubeastra/ui/backend/routers/chat.py)
   Main chat router and dispatcher
-- [routers/health.py](/Users/pruthvidavineni/AI_DevOps_Assistant/k8s-devops-ai-assistant/ui/backend/routers/health.py)
+- [routers/health.py](/path/to/kubeastra/ui/backend/routers/health.py)
   Health endpoints
-- [routers/sessions.py](/Users/pruthvidavineni/AI_DevOps_Assistant/k8s-devops-ai-assistant/ui/backend/routers/sessions.py)
+- [routers/sessions.py](/path/to/kubeastra/ui/backend/routers/sessions.py)
   Chat history and SSH target endpoints
 
 ## Local Run

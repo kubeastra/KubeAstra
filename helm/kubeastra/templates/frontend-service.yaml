@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "k8s-devops-assistant.fullname" . }}-frontend
+  name: {{ include "kubeastra.fullname" . }}-frontend
   namespace: {{ .Values.namespace }}
   labels:
-    {{- include "k8s-devops-assistant.labels" . | nindent 4 }}
+    {{- include "kubeastra.labels" . | nindent 4 }}
     app.kubernetes.io/component: frontend
   {{- with .Values.frontend.service.annotations }}
   annotations:
@@ -18,4 +18,4 @@ spec:
       protocol: TCP
       name: http
   selector:
-    {{- include "k8s-devops-assistant.frontend.selectorLabels" . | nindent 4 }}
+    {{- include "kubeastra.frontend.selectorLabels" . | nindent 4 }}

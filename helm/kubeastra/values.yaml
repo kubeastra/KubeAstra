@@ -1,29 +1,29 @@
-# ── values.yaml — K8s DevOps Assistant Helm Chart ────────────────────────────
+# ── values.yaml — Kubeastra Helm Chart ────────────────────────────
 #
 # Minimal install (pass secrets via --set or a secrets file):
 #
-#   helm install k8s-devops . \
-#     --namespace k8s-devops --create-namespace \
-#     --set backend.image.repository=ghcr.io/your-org/k8s-devops-backend \
+#   helm install kubeastra . \
+#     --namespace kubeastra --create-namespace \
+#     --set backend.image.repository=ghcr.io/your-org/kubeastra-backend \
 #     --set backend.image.tag=1.0.0 \
-#     --set frontend.image.repository=ghcr.io/your-org/k8s-devops-frontend \
+#     --set frontend.image.repository=ghcr.io/your-org/kubeastra-frontend \
 #     --set frontend.image.tag=1.0.0 \
 #     --set secrets.geminiApiKey="YOUR_GEMINI_API_KEY" \
 #     --set secrets.kubeconfig="$(cat ~/.kube/config | base64)"
 
 # ── Global ────────────────────────────────────────────────────────────────────
 nameOverride: ""
-# Shorten pod names: "k8s-devops-assistant-backend-xxx" / "k8s-devops-assistant-frontend-xxx"
-# Without this, Helm combines release name + chart name → "k8s-devops-k8s-devops-assistant-..."
-fullnameOverride: "k8s-devops-assistant"
+# Shorten pod names: "kubeastra-backend-xxx" / "kubeastra-frontend-xxx"
+# Without this, Helm combines release name + chart name → "kubeastra-..."
+fullnameOverride: "kubeastra"
 
-namespace: k8s-devops
+namespace: kubeastra
 
 # ── Backend (FastAPI + mcp) ───────────────────────────────────────
 backend:
   image:
-    # Replace with your registry — e.g. ghcr.io/your-org/k8s-devops-backend
-    repository: ghcr.io/your-org/k8s-devops-backend
+    # Replace with your registry — e.g. ghcr.io/your-org/kubeastra-backend
+    repository: ghcr.io/your-org/kubeastra-backend
     tag: "latest"
     pullPolicy: IfNotPresent
 
@@ -100,8 +100,8 @@ backend:
 # ── Frontend (Next.js) ────────────────────────────────────────────────────────
 frontend:
   image:
-    # Replace with your registry — e.g. ghcr.io/your-org/k8s-devops-frontend
-    repository: ghcr.io/your-org/k8s-devops-frontend
+    # Replace with your registry — e.g. ghcr.io/your-org/kubeastra-frontend
+    repository: ghcr.io/your-org/kubeastra-frontend
     tag: "latest"
     pullPolicy: IfNotPresent
 
@@ -176,7 +176,7 @@ secrets:
 #
 # Cursor config example (after enabling):
 #   "mcpServers": {
-#     "k8s-devops": {
+#     "kubeastra": {
 #       "type": "http",
 #       "url": "http://<node-ip>:<nodePort>/mcp/",
 #       "headers": { "Authorization": "Bearer <mcpAuthToken>" }
@@ -210,14 +210,14 @@ ingress:
     # nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
     # nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
   # Frontend host — serves the chat UI
-  frontendHost: "k8s-devops.example.com"
+  frontendHost: "kubeastra.example.com"
   # Backend host — serves the API (optional: use path-based routing instead)
-  backendHost: "k8s-devops-api.example.com"
+  backendHost: "kubeastra-api.example.com"
   tls: []
-  # - secretName: k8s-devops-tls
+  # - secretName: kubeastra-tls
   #   hosts:
-  #     - k8s-devops.example.com
-  #     - k8s-devops-api.example.com
+  #     - kubeastra.example.com
+  #     - kubeastra-api.example.com
 
 # ── Image pull secret (for private registries) ───────────────────────────────
 imagePullSecrets: []

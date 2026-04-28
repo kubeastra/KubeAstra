@@ -1,4 +1,4 @@
-# K8s DevOps Web UI
+# Kubeastra Web UI
 
 A self-hosted web application that gives your entire team access to the 32 `mcp` tools through a **conversational chat interface** — no Cursor or AI IDE required.
 
@@ -57,7 +57,7 @@ The frontend now proxies backend calls through its own `/api/*` route, so browse
 ### 1. Run setup
 
 ```bash
-cd k8s-devops-ai-assistant/ui
+cd kubeastra/ui
 bash setup.sh
 ```
 
@@ -93,7 +93,7 @@ behind the scenes and proxies browser requests through `http://localhost:3000/ap
 Requires Docker Desktop running.
 
 ```bash
-cd k8s-devops-ai-assistant/ui
+cd kubeastra/ui
 
 # Copy and edit .env
 cp backend/.env.example backend/.env
@@ -254,8 +254,8 @@ Deploy on any Linux server with Docker and kubectl access:
 
 ```bash
 # 1. Clone the repo on the server
-git clone <your-repo> /opt/k8s-devops-ai-assistant
-cd /opt/k8s-devops-ai-assistant/ui
+git clone <your-repo> /opt/kubeastra
+cd /opt/kubeastra/ui
 
 # 2. For local cluster access — copy kubeconfig to server
 scp ~/.kube/config server:/root/.kube/config

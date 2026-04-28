@@ -1,4 +1,4 @@
-# K8s DevOps AI Assistant
+# Kubeastra
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
@@ -79,8 +79,8 @@ Pick your LLM — **Google Gemini** (default, free tier available) or **Ollama**
 ### Option 1: Try the demo (60 seconds, no cluster needed)
 
 ```bash
-git clone https://github.com/AskKube/k8s-devops-ai-assistant.git
-cd k8s-devops-ai-assistant
+git clone https://github.com/AskKube/kubeastra.git
+cd kubeastra
 make demo
 ```
 
@@ -118,10 +118,10 @@ Restart your IDE — all 33 tools appear as MCP tools.
 ### Option 4: Deploy to Kubernetes via Helm
 
 ```bash
-helm upgrade --install k8s-devops helm/k8s-devops-assistant \
-  --namespace k8s-devops --create-namespace \
-  --set backend.image.repository=ghcr.io/your-org/k8s-devops-backend \
-  --set frontend.image.repository=ghcr.io/your-org/k8s-devops-frontend \
+helm upgrade --install kubeastra helm/kubeastra \
+  --namespace kubeastra --create-namespace \
+  --set backend.image.repository=ghcr.io/your-org/kubeastra-backend \
+  --set frontend.image.repository=ghcr.io/your-org/kubeastra-frontend \
   --set secrets.geminiApiKey="YOUR_KEY" \
   --set secrets.kubeconfig="$(cat ~/.kube/config | base64 | tr -d '\n')"
 ```
@@ -216,7 +216,7 @@ All settings are read from environment variables (or `.env`):
 ## Repository Layout
 
 ```
-k8s-devops-ai-assistant/
+kubeastra/
 ├── ui/
 │   ├── frontend/          # Next.js chat UI
 │   ├── backend/           # FastAPI app + SQLite persistence
@@ -227,7 +227,7 @@ k8s-devops-ai-assistant/
 │   ├── ai_tools/          # Error analysis, runbooks, error summary
 │   ├── services/          # LLM providers, Weaviate, embeddings
 │   └── config/settings.py
-├── helm/k8s-devops-assistant/   # Helm chart
+├── helm/kubeastra/   # Helm chart
 ├── demo/                        # Kind + broken workloads for `make demo`
 └── docs/                        # Architecture diagrams, deployment guide
 ```
@@ -245,7 +245,7 @@ k8s-devops-ai-assistant/
 - [ ] Agentic investigation loop (multi-step ReAct)
 - [ ] Prometheus/Grafana metrics integration
 - [ ] Shareable session URLs
-- [ ] CLI tool (`k8s-devops-ai investigate <pod>`)
+- [ ] CLI tool (`kubeastra investigate <pod>`)
 - [ ] VS Code extension (beyond MCP)
 - [ ] Post-mortem generator
 - [ ] CNCF Sandbox submission

@@ -20,7 +20,7 @@ The same toolset is available through two MCP transports:
 1. **`investigate_pod` now includes Gemini AI** — after running the kubectl playbook, it automatically calls Gemini to produce a root-cause analysis and copy-paste fix commands from the live data.
 2. **SSH remote cluster support** — query any remote kubeadm cluster by passing SSH credentials (host/username/password). No kubeconfig copy needed on the central server.
 3. **All-namespace queries** — `get_events` and `get_pods` accept `namespace="*"` to search across all namespaces (equivalent to `kubectl -A`).
-4. **Single Cursor config entry** — one `k8s-devops` entry in `~/.cursor/mcp.json` replaces two.
+4. **Single Cursor config entry** — one `kubeastra` entry in `~/.cursor/mcp.json` replaces two.
 5. **Unified settings** — one `.env` file covers both kubectl tuning and AI API keys.
 
 ---
@@ -28,7 +28,7 @@ The same toolset is available through two MCP transports:
 ## Quick Start
 
 ```bash
-cd k8s-devops-ai-assistant/mcp
+cd kubeastra/mcp
 ./setup.sh
 ```
 
@@ -38,7 +38,7 @@ GEMINI_API_KEY=your_key_here
 ALLOWED_NAMESPACES=prod,staging,dev,default
 ```
 
-Restart Cursor — the `k8s-devops` MCP server will be active with all 32 tools.
+Restart Cursor — the `kubeastra` MCP server will be active with all 32 tools.
 
 To expose the server over localhost HTTP for another IDE:
 ```bash
@@ -206,11 +206,11 @@ EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
 ```json
 {
   "mcpServers": {
-    "k8s-devops": {
-      "command": "<absolute-path>/k8s-devops-ai-assistant/mcp/venv/bin/python",
-      "args": ["<absolute-path>/k8s-devops-ai-assistant/mcp/mcp_server/server.py"],
+    "kubeastra": {
+      "command": "<absolute-path>/kubeastra/mcp/venv/bin/python",
+      "args": ["<absolute-path>/kubeastra/mcp/mcp_server/server.py"],
       "env": {
-        "PYTHONPATH": "<absolute-path>/k8s-devops-ai-assistant/mcp",
+        "PYTHONPATH": "<absolute-path>/kubeastra/mcp",
         "ALLOWED_NAMESPACES": "prod,staging,dev,default"
       }
     }
@@ -218,14 +218,14 @@ EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
 }
 ```
 
-Replace `<absolute-path>` with the output of `pwd` run from inside `k8s-devops-ai-assistant/`.
+Replace `<absolute-path>` with the output of `pwd` run from inside `kubeastra/`.
 
 ## HTTP MCP Config (`~/.cursor/mcp.json` or another IDE)
 
 Run the HTTP transport locally:
 
 ```bash
-cd k8s-devops-ai-assistant/mcp
+cd kubeastra/mcp
 make run-http
 ```
 
@@ -234,7 +234,7 @@ Then use this remote MCP config:
 ```json
 {
   "mcpServers": {
-    "k8s-devops-http": {
+    "kubeastra-http": {
       "url": "http://127.0.0.1:8001/mcp/"
     }
   }
@@ -251,7 +251,7 @@ make run-http
 ```json
 {
   "mcpServers": {
-    "k8s-devops-http": {
+    "kubeastra-http": {
       "url": "http://127.0.0.1:8001/mcp/",
       "headers": {
         "Authorization": "Bearer dev-local-token"

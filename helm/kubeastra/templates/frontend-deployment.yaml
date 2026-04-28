@@ -1,20 +1,20 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "k8s-devops-assistant.fullname" . }}-frontend
+  name: {{ include "kubeastra.fullname" . }}-frontend
   namespace: {{ .Values.namespace }}
   labels:
-    {{- include "k8s-devops-assistant.labels" . | nindent 4 }}
+    {{- include "kubeastra.labels" . | nindent 4 }}
     app.kubernetes.io/component: frontend
 spec:
   replicas: {{ .Values.frontend.replicaCount }}
   selector:
     matchLabels:
-      {{- include "k8s-devops-assistant.frontend.selectorLabels" . | nindent 6 }}
+      {{- include "kubeastra.frontend.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "k8s-devops-assistant.frontend.selectorLabels" . | nindent 8 }}
+        {{- include "kubeastra.frontend.selectorLabels" . | nindent 8 }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
@@ -35,7 +35,7 @@ spec:
             # This is evaluated at runtime by the Next.js server, so the frontend
             # image no longer needs to be rebuilt just to change the backend URL.
             - name: API_BASE_URL
-              value: {{ include "k8s-devops-assistant.frontendApiUrl" . | quote }}
+              value: {{ include "kubeastra.frontendApiUrl" . | quote }}
 
             # Required by Next.js standalone server
             - name: HOSTNAME

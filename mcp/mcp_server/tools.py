@@ -1,4 +1,4 @@
-"""MCP tool registrations for the unified K8s DevOps MCP server.
+"""MCP tool registrations for the unified Kubeastra MCP server.
 
 Registers 33 tools split across two categories:
   • 27 live kubectl tools  — real-time cluster investigation & recovery

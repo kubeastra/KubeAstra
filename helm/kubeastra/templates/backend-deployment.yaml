@@ -1,26 +1,26 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "k8s-devops-assistant.fullname" . }}-backend
+  name: {{ include "kubeastra.fullname" . }}-backend
   namespace: {{ .Values.namespace }}
   labels:
-    {{- include "k8s-devops-assistant.labels" . | nindent 4 }}
+    {{- include "kubeastra.labels" . | nindent 4 }}
     app.kubernetes.io/component: backend
 spec:
   replicas: {{ .Values.backend.replicaCount }}
   selector:
     matchLabels:
-      {{- include "k8s-devops-assistant.backend.selectorLabels" . | nindent 6 }}
+      {{- include "kubeastra.backend.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "k8s-devops-assistant.backend.selectorLabels" . | nindent 8 }}
+        {{- include "kubeastra.backend.selectorLabels" . | nindent 8 }}
       annotations:
         # Force pod restart when ConfigMap or Secret changes
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
     spec:
-      serviceAccountName: {{ include "k8s-devops-assistant.serviceAccountName" . }}
+      serviceAccountName: {{ include "kubeastra.serviceAccountName" . }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -58,20 +58,20 @@ spec:
           # ── Environment from ConfigMap ──────────────────────────────────────
           envFrom:
             - configMapRef:
-                name: {{ include "k8s-devops-assistant.fullname" . }}-config
+                name: {{ include "kubeastra.fullname" . }}-config
 
           # ── Secret env vars ────────────────────────────────────────────────
           env:
             - name: GEMINI_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "k8s-devops-assistant.fullname" . }}-secrets
+                  name: {{ include "kubeastra.fullname" . }}-secrets
                   key: GEMINI_API_KEY
                   optional: true
             - name: MCP_AUTH_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "k8s-devops-assistant.fullname" . }}-secrets
+                  name: {{ include "kubeastra.fullname" . }}-secrets
                   key: MCP_AUTH_TOKEN
                   optional: true  # MCP server runs without auth when not set
 
@@ -109,7 +109,7 @@ spec:
         {{- if .Values.secrets.kubeconfig }}
         - name: kubeconfig
           secret:
-            secretName: {{ include "k8s-devops-assistant.fullname" . }}-secrets
+            secretName: {{ include "kubeastra.fullname" . }}-secrets
             items:
               - key: config
                 path: config
@@ -119,7 +119,7 @@ spec:
         - name: data
           {{- if .Values.backend.persistence.enabled }}
           persistentVolumeClaim:
-            claimName: {{ include "k8s-devops-assistant.fullname" . }}-data
+            claimName: {{ include "kubeastra.fullname" . }}-data
           {{- else }}
           emptyDir: {}
           {{- end }}

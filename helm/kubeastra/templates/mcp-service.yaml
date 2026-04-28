@@ -6,7 +6,7 @@ clients connect directly to the MCP server from outside the cluster.
 
 Cursor config (after exposing externally):
   "mcpServers": {
-    "k8s-devops": {
+    "kubeastra": {
       "type": "http",
       "url": "http://<node-ip>:<nodePort>/mcp/",
       "headers": { "Authorization": "Bearer <mcpAuthToken>" }
@@ -16,15 +16,15 @@ Cursor config (after exposing externally):
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "k8s-devops-assistant.fullname" . }}-mcp
+  name: {{ include "kubeastra.fullname" . }}-mcp
   namespace: {{ .Values.namespace }}
   labels:
-    {{- include "k8s-devops-assistant.labels" . | nindent 4 }}
+    {{- include "kubeastra.labels" . | nindent 4 }}
     app.kubernetes.io/component: mcp
 spec:
   type: {{ .Values.mcp.service.type }}
   selector:
-    {{- include "k8s-devops-assistant.backend.selectorLabels" . | nindent 4 }}
+    {{- include "kubeastra.backend.selectorLabels" . | nindent 4 }}
   ports:
     - name: mcp
       port: {{ .Values.mcp.service.port }}

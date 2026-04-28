@@ -3,4 +3,4 @@ kind: Namespace
 metadata:
   name: demo
   labels:
-    purpose: k8s-devops-ai-assistant-demo
+    purpose: kubeastra-demo
