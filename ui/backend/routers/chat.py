@@ -2,7 +2,8 @@
 
 POST /api/chat
   Input:  { message: str, history?: list, ssh?: SSHCredentials }
-  Output: { reply: str, tool_used: str, result: dict | None }
+  Output: { reply: str, tool_used: str, result: dict | None,
+            timestamp: float, suggested_actions: list }
 
 The router asks Gemini to classify the user's intent and extract
 parameters, then calls the appropriate tool function automatically.
@@ -81,6 +82,19 @@ class ChatResponse(BaseModel):
     tool_used: str
     result: Optional[dict] = None
     error: Optional[str] = None
+    timestamp: float = 0.0
+    suggested_actions: list = []
+
+
+class ExecuteRequest(BaseModel):
+    command: str
+    ssh: Optional[SSHCredentials] = None
+
+
+class ExecuteResponse(BaseModel):
+    success: bool
+    output: str = ""
+    error: str = ""
 
 
 # ── Intent routing prompt ─────────────────────────────────────────────────────
@@ -114,6 +128,7 @@ Available tools and when to use them:
                                (Ingress → Service → Deployment → Pod relationships)
 21. investigate_workload     — user asks to investigate, debug, or triage a specific deployment, statefulset, or daemonset
 22. analyze_namespace        — user asks for a holistic health check, analysis, or systemic issue check of a namespace
+23. get_nodes                — user asks about nodes in the cluster (e.g. "how many nodes", "list nodes")
 
 CRITICAL ROUTING RULES:
 
@@ -132,7 +147,7 @@ RULE 0 — "all resources" / "everything in namespace X" always uses list_namesp
 RULE 1 — "Are there any X?" questions check the LIVE cluster, they do NOT generate runbooks:
   When NO namespace is mentioned, ALWAYS use namespace="*" (all namespaces):
   "are there any OOM errors?"           → get_events (namespace="*", field_selector="type=Warning")
-  "any CrashLoopBackOff pods?"          → get_pods (namespace="*")
+  "any CrashLoopBackOff pods?"          → get_pods (namespace="*", status_filter="CrashLoopBackOff")
   "are there any warnings?"             → get_events (namespace="*", field_selector="type=Warning")
   "are there any recent events?"        → get_events (namespace="*")
   "any issues in namespace X?"          → get_events (namespace="X")
@@ -183,7 +198,7 @@ Parameter extraction rules:
 - For investigate_pod: params = { "namespace": "<ns if explicitly stated>", "pod_name": "<name>", "use_ai": true }
   - ONLY include namespace if the user explicitly states it. If not stated, omit it entirely.
   - If pod name not given but service/app name is, use it as pod_name
-- For get_pods: params = { "namespace": "<ns>" }
+- For get_pods: params = { "namespace": "<ns>", "status_filter": "<optional status to filter by, e.g. CrashLoopBackOff, Error. If user says 'crashloop', use 'CrashLoopBackOff'>" }
 - For get_pod_logs: params = { "namespace": "<ns if explicitly stated>", "pod_name": "<name>", "previous": false }
   - ONLY include namespace if the user explicitly states it. If not stated, omit it entirely.
   - Set previous=true if user says "previous", "crashed", "last crash"
@@ -209,6 +224,7 @@ Parameter extraction rules:
 - For get_resource_graph: params = { "namespace": "<ns>" }
 - For investigate_workload: params = { "namespace": "<ns if stated>", "workload_name": "<name>", "workload_type": "deployment", "use_ai": true }
 - For analyze_namespace: params = { "namespace": "<ns>" }
+- For get_nodes: params = {}
 
 If the message is a general question or greeting that doesn't map to a tool,
 respond with: { "tool": "none", "params": {}, "explanation": "<friendly response to the user>" }"""
@@ -366,7 +382,7 @@ def _dispatch_inner(tool: str, params: dict) -> dict:
 
     elif tool == "get_pods":
         from k8s.wrappers import get_pods
-        return get_pods(ns, params.get("label_selector"))
+        return get_pods(ns, params.get("label_selector"), params.get("status_filter"))
 
     elif tool == "get_pod_logs":
         from k8s.wrappers import get_pod_logs
@@ -448,6 +464,10 @@ def _dispatch_inner(tool: str, params: dict) -> dict:
         from k8s.wrappers import get_namespaces
         return get_namespaces()
 
+    elif tool == "get_nodes":
+        from k8s.wrappers import get_nodes
+        return get_nodes()
+
     elif tool == "list_namespace_resources":
         from k8s.wrappers import list_namespace_resources
         return list_namespace_resources(ns)
@@ -486,8 +506,12 @@ def _gemini_route(message: str, history: list[ChatMessage]) -> dict:
     try:
         text = provider.generate(prompt, system=ROUTER_SYSTEM, temperature=0.1)
     except Exception as e:
-        logger.warning(f"{provider.name} routing failed, falling back to keyword routing: {e}")
-        return _keyword_route(message, history)
+        err_str = str(e)
+        logger.warning(f"{provider.name} routing failed, falling back to keyword routing: {err_str}")
+        res = _keyword_route(message, history)
+        if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str or "503" in err_str or "UNAVAILABLE" in err_str:
+            res["_router_error"] = f"AI Service Unavailable (Quota/Rate Limit): {err_str}"
+        return res
 
     text = (text or "").strip()
     # Strip markdown code fences if present
@@ -787,22 +811,21 @@ _SYNTHESIZE_TOOLS = {
 }
 
 
-def _synthesize_answer(question: str, tool: str, result: dict) -> Optional[str]:
+def _synthesize_answer(question: str, tool: str, result: dict) -> tuple[Optional[str], Optional[str]]:
     """Use the configured LLM to write a concise direct answer to the user's question.
 
     Takes the original question and the tool result, asks the LLM for a
     1-2 sentence summary that directly answers what was asked rather than
     just saying "here are the pods".
 
-    Returns None if the LLM is unavailable or the tool is not in the
-    synthesise list — the caller falls back to _friendly_summary().
+    Returns (answer, error) where both can be None.
     """
     if tool not in _SYNTHESIZE_TOOLS:
-        return None
+        return None, None
 
     provider = _llm_provider()
     if provider is None or not provider.enabled:
-        return None
+        return None, None
 
     import json as _json
 
@@ -817,14 +840,37 @@ def _synthesize_answer(question: str, tool: str, result: dict) -> Optional[str]:
             "steps_run": result.get("steps_run"),
         }
         result_text = _json.dumps(focused, default=str)[:3000]
+    elif tool == "get_pods":
+        # For pod listings, always send the health summary first so the LLM
+        # sees unhealthy pods even when the full list is 170+ entries.
+        health = result.get("health_summary", {})
+        focused = {
+            "namespace": result.get("namespace"),
+            "pod_count": result.get("pod_count"),
+            "health_summary": health,
+        }
+        # If there are few enough pods, include the full list
+        full_json = _json.dumps(result, default=str)
+        if len(full_json) <= 3000:
+            result_text = full_json
+        else:
+            # Health summary + first/last pods for context
+            result_text = _json.dumps(focused, default=str)[:3000]
     else:
         # Compact the result to avoid inflating the prompt — 3000 chars is
         # enough to understand pod counts, statuses, restart counts etc.
         result_text = _json.dumps(result, default=str)[:3000]
 
+    # Scale max_tokens based on tool complexity
+    _COMPLEX_TOOLS = {
+        "investigate_pod", "investigate_workload", "analyze_namespace",
+        "list_namespace_resources", "get_pods", "get_events",
+    }
+    max_tok = 800 if tool in _COMPLEX_TOOLS else 400
+
     system = (
         "You are a Kubernetes DevOps assistant. "
-        "Answer the user's question directly and concisely in 2-3 sentences using the data provided. "
+        "Answer the user's question directly and concisely in 2-4 sentences using the data provided. "
         "Be specific: mention pod names, image names, counts, or error reasons where relevant. "
         "Apply semantic reasoning — do not rely on exact keyword matches: "
         "  • BackOff events on pods that are pulling images = ImagePullBackOff-related issue. "
@@ -832,8 +878,8 @@ def _synthesize_answer(question: str, tool: str, result: dict) -> Optional[str]:
         "  • CrashLoopBackOff in pod status = crash loop issue. "
         "Only say 'none found' if the data genuinely shows no related activity whatsoever. "
         "Do not list every event — summarise the pattern (e.g. which pods, which image, how many). "
-        "Do not use markdown, bullet points, or code blocks. "
-        "Plain sentences only."
+        "Use markdown formatting: **bold** for emphasis, `inline code` for pod/resource names, "
+        "and bullet points for lists of 3+ items. Keep the response concise."
     )
 
     try:
@@ -841,14 +887,69 @@ def _synthesize_answer(question: str, tool: str, result: dict) -> Optional[str]:
             f"User question: {question}\n\nData returned: {result_text}",
             system=system,
             temperature=0.1,
-            max_tokens=220,
+            max_tokens=max_tok,
         )
     except Exception as e:
-        logger.warning(f"Answer synthesis failed, using static summary: {e}")
-        return None
+        err_str = str(e)
+        logger.warning(f"Answer synthesis failed, using static summary: {err_str}")
+        if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str or "503" in err_str or "UNAVAILABLE" in err_str:
+            return None, f"AI Service Unavailable (Quota/Rate Limit): {err_str}"
+        return None, None
 
     answer = (answer or "").strip()
-    return answer if answer else None
+    return answer if answer else None, None
+
+# ── Suggested actions extraction ──────────────────────────────────────────────
+
+def _extract_suggested_actions(tool: str, result: dict) -> list:
+    """Extract actionable commands from tool results for the frontend.
+
+    Looks for kubectl commands in AI analysis results, fix playbooks, and
+    error analysis that the user might want to execute directly.
+    Returns a list of action dicts: [{type, label, command, namespace?, confirm?}]
+    """
+    actions = []
+    if not isinstance(result, dict):
+        return actions
+
+    # From investigate_pod AI analysis
+    ai = result.get("ai", {})
+    if isinstance(ai, dict):
+        ai_analysis = ai.get("ai_analysis", {})
+        if isinstance(ai_analysis, dict):
+            for cmd in ai_analysis.get("commands", []):
+                c = cmd if isinstance(cmd, str) else (cmd.get("command") or cmd.get("cmd") or "")
+                desc = "" if isinstance(cmd, str) else cmd.get("description", "")
+                if c and c.strip().startswith("kubectl"):
+                    is_write = any(w in c for w in ["delete", "apply", "patch", "scale", "rollout restart"])
+                    actions.append({
+                        "type": "apply" if is_write else "run",
+                        "label": desc or c[:60],
+                        "command": c,
+                        "confirm": is_write,
+                    })
+
+    # From analyze_error / get_fix_commands
+    for cmd in result.get("commands", []):
+        c = cmd if isinstance(cmd, str) else (cmd.get("command") or cmd.get("cmd") or "")
+        desc = "" if isinstance(cmd, str) else cmd.get("description", "")
+        if c and c.strip().startswith("kubectl"):
+            is_write = any(w in c for w in ["delete", "apply", "patch", "scale", "rollout restart"])
+            actions.append({
+                "type": "apply" if is_write else "run",
+                "label": desc or c[:60],
+                "command": c,
+                "confirm": is_write,
+            })
+
+    # Deduplicate by command
+    seen = set()
+    deduped = []
+    for a in actions:
+        if a["command"] not in seen:
+            seen.add(a["command"])
+            deduped.append(a)
+    return deduped[:5]  # Cap at 5 actions
 
 
 # ── Chat endpoint ─────────────────────────────────────────────────────────────
@@ -920,6 +1021,7 @@ def chat(req: ChatRequest):
         tool = routing.get("tool", "none")
         params = routing.get("params", {})
         explanation = routing.get("explanation", "")
+        router_error = routing.get("_router_error")
         logger.info(
             "chat_routed session=%s tool=%s ssh=%s",
             session_tag,
@@ -934,6 +1036,7 @@ def chat(req: ChatRequest):
                 reply=explanation,
                 tool_used="none",
                 result=None,
+                timestamp=time.time(),
             )
 
         # 4. Dispatch to tool
@@ -954,21 +1057,32 @@ def chat(req: ChatRequest):
             err = result.get("error", "Unknown error")
             reply = hint or f"I ran into an issue: {err}"
             _persist("assistant", reply, tool_used=tool, result=result, error=err)
-            return ChatResponse(reply=reply, tool_used=tool, result=result, error=err)
+            return ChatResponse(reply=reply, tool_used=tool, result=result, error=err, timestamp=time.time())
 
         # 6. Build reply — try Gemini synthesis first, fall back to static summary
         not_found_hint = result.pop("_not_found_hint", None) if isinstance(result, dict) else None
+        
+        synth_ans, synth_err = _synthesize_answer(req.message, tool, result)
+        
         reply = (
             not_found_hint
-            or _synthesize_answer(req.message, tool, result)
+            or synth_ans
             or _friendly_summary(tool, result, explanation)
         )
 
-        _persist("assistant", reply, tool_used=tool, result=result)
+        # 7. Extract suggested actions from AI analysis results
+        actions = _extract_suggested_actions(tool, result)
+
+        final_err = router_error or synth_err
+        
+        _persist("assistant", reply, tool_used=tool, result=result, error=final_err)
         return ChatResponse(
             reply=reply,
             tool_used=tool,
             result=result,
+            error=final_err,
+            timestamp=time.time(),
+            suggested_actions=actions,
         )
 
     except Exception as e:
@@ -984,6 +1098,84 @@ def chat(req: ChatRequest):
 
     finally:
         # Always close SSH and restore the runner context
+        if ssh_runner is not None:
+            ssh_runner.close()
+        if ctx_token is not None:
+            from k8s.kubectl_runner import runner_ctx
+            runner_ctx.reset(ctx_token)
+
+
+# ── Execute endpoint ──────────────────────────────────────────────────────────
+
+# Only these kubectl sub-commands are allowed via the execute endpoint.
+_SAFE_KUBECTL_PREFIXES = [
+    "kubectl patch ",
+    "kubectl apply ",
+    "kubectl scale ",
+    "kubectl rollout restart ",
+    "kubectl delete pod ",
+    "kubectl set image ",
+    "kubectl set resources ",
+    "kubectl label ",
+    "kubectl annotate ",
+    "kubectl cordon ",
+    "kubectl uncordon ",
+    "kubectl drain ",
+]
+
+
+@router.post("/execute", response_model=ExecuteResponse)
+def execute_command(req: ExecuteRequest):
+    """Execute a kubectl command suggested by AI analysis.
+
+    Safety guards:
+    - Only kubectl commands are allowed (no shell injection).
+    - Only specific kubectl sub-commands from a whitelist are permitted.
+    - SSH credentials are supported for remote cluster execution.
+    """
+    cmd = req.command.strip()
+    logger.info("execute_request command=%s ssh=%s", cmd[:80], bool(req.ssh))
+
+    # Safety check 1: Must start with "kubectl"
+    if not cmd.startswith("kubectl"):
+        return ExecuteResponse(success=False, error="Only kubectl commands are allowed.")
+
+    # Safety check 2: Must match a safe prefix
+    if not any(cmd.startswith(prefix) for prefix in _SAFE_KUBECTL_PREFIXES):
+        return ExecuteResponse(
+            success=False,
+            error=f"Command not in allowed list. Allowed: {', '.join(p.strip() for p in _SAFE_KUBECTL_PREFIXES)}",
+        )
+
+    # Safety check 3: No shell metacharacters
+    dangerous = set(";|&$`()")
+    if any(c in cmd for c in dangerous):
+        return ExecuteResponse(success=False, error="Command contains disallowed shell characters.")
+
+    # Execute
+    ssh_runner = None
+    ctx_token = None
+    try:
+        if req.ssh:
+            from k8s.kubectl_runner import SSHKubectlRunner, runner_ctx
+            ssh_runner = SSHKubectlRunner(
+                host=req.ssh.host,
+                username=req.ssh.username,
+                password=req.ssh.password or None,
+                key_path=req.ssh.key_path or None,
+                port=req.ssh.port,
+            )
+            ctx_token = runner_ctx.set(ssh_runner)
+
+        from k8s.kubectl_runner import run_kubectl
+        result = run_kubectl(cmd.replace("kubectl ", "", 1))
+        return ExecuteResponse(success=True, output=result)
+
+    except Exception as e:
+        logger.exception("Execute error")
+        return ExecuteResponse(success=False, error=str(e))
+
+    finally:
         if ssh_runner is not None:
             ssh_runner.close()
         if ctx_token is not None:

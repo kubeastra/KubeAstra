@@ -192,6 +192,37 @@ def get_namespaces() -> Dict[str, Any]:
     }
 
 
+def get_nodes() -> Dict[str, Any]:
+    """List all nodes in the cluster with their status."""
+    result = get_runner().run_json(["get", "nodes", "-o", "json"])
+    items = result.get("items", [])
+    nodes = []
+    for node in items:
+        name = node.get("metadata", {}).get("name", "")
+        status = node.get("status", {})
+        conditions = status.get("conditions", [])
+        ready = "Unknown"
+        for cond in conditions:
+            if cond.get("type") == "Ready":
+                ready = "Ready" if cond.get("status") == "True" else "NotReady"
+                break
+        
+        info = status.get("nodeInfo", {})
+        version = info.get("kubeletVersion", "")
+        os_image = info.get("osImage", "")
+        
+        nodes.append({
+            "name": name,
+            "status": ready,
+            "version": version,
+            "os_image": os_image
+        })
+    return {
+        "node_count": len(nodes),
+        "nodes": nodes,
+    }
+
+
 def list_namespace_resources(namespace: str) -> Dict[str, Any]:
     """List all key resource types in a namespace in one call.
 
@@ -343,15 +374,17 @@ def list_services(namespace: str) -> Dict[str, Any]:
 
 def get_pods(
     namespace: str,
-    label_selector: Optional[str] = None
+    label_selector: Optional[str] = None,
+    status_filter: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    List pods in namespace with optional label selector.
+    List pods in namespace with optional label selector and status filter.
 
     Args:
         namespace: Namespace to query. Pass "*" or "all" to list pods across
                    all namespaces (equivalent to kubectl get pods -A).
         label_selector: Optional label selector (e.g., "app=myapp")
+        status_filter: Optional status to filter results by (e.g. "CrashLoopBackOff")
 
     Returns:
         Dict with pod summaries
@@ -403,9 +436,13 @@ def get_pods(
         "status_breakdown": status_counts,
     }
 
+    if status_filter:
+        pods = [p for p in pods if status_filter.lower() in p.get("status", "").lower() or (p.get("status_reason") and status_filter.lower() in p.get("status_reason", "").lower())]
+
     return {
         "namespace": "*" if all_namespaces else namespace,
         "label_selector": label_selector,
+        "status_filter": status_filter,
         "pod_count": len(pods),
         "health_summary": health_summary,
         "pods": pods,

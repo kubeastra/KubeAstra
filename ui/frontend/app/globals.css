@@ -1,65 +1,76 @@
 @import "tailwindcss";
 
-/* ── Astra Intent — Design Tokens ────────────────────────────────────────── */
+@import "tailwindcss";
+
+/* ── Astra Intent Light — Design Tokens ────────────────────────────────────────── */
 :root {
-  /* Primary — Astra teal */
-  --brand:        #22D3EE;
-  --brand-hover:  #38E8FF;
-  --brand-dim:    rgba(34, 211, 238, 0.10);
-  --brand-border: rgba(34, 211, 238, 0.25);
+  /* Terminal Paper — light base */
+  --paper:     #F8F7F4;
+  --paper-2:   #F0EEE9;
+  --paper-3:   #E8E5DE;
+  
+  --ink:       #1A1A18;
+  --ink-2:     #3D3D39;
+  --ink-3:     #6B6B65;
+  --ink-4:     #9B9B93;
+  
+  --rule:      #E0DDD6;
+  --rule-2:    #D0CCC4;
 
-  /* Secondary — blue accent */
-  --brand-alt:    #4F8EF7;
-  --brand-alt-dim: rgba(79, 142, 247, 0.12);
-  --brand-alt-border: rgba(79, 142, 247, 0.20);
+  /* Status */
+  --red:       #DC2626;
+  --red-bg:    #FEF2F2;
+  --red-bd:    #FECACA;
+  --amber:     #D97706;
+  --amber-bg:  #FFFBEB;
+  --amber-bd:  #FDE68A;
+  --green:     #16A34A;
+  --green-bg:  #F0FDF4;
+  --green-bd:  #BBF7D0;
 
-  /* Copper — action / execute accent */
-  --copper:       #C8733A;
-  --copper-dim:   rgba(200, 115, 58, 0.15);
-  --copper-border: rgba(200, 115, 58, 0.40);
+  /* Accent A — Cyan (brand) */
+  --accent-a:  #0891B2;
+  --accent-a-bright: #22D3EE;
+  --accent-a-bg:     #ECFEFF;
+  --accent-a-bd:     #A5F3FC;
 
-  /* Backgrounds — deep space */
-  --bg-base:      #07091A;
-  --bg-surface:   #0A0D14;
-  --bg-surface-2: #0F1520;
-  --bg-surface-3: #1A2535;
+  /* Active accent */
+  --accent:        var(--accent-a);
+  --accent-bright: var(--accent-a-bright);
+  --accent-bg:     var(--accent-a-bg);
+  --accent-bd:     var(--accent-a-bd);
 
-  /* Borders */
-  --border:       #1A2535;
-  --border-hover: #2A3A50;
-
-  /* Text */
-  --text-primary:   #E2E8F0;
-  --text-secondary: #94A3B8;
-  --text-muted:     #475569;
-  --text-dim:       #2A3A50;
-
-  /* Semantic */
-  --success: #34D399;
-  --warning: #FBBF24;
-  --danger:  #EF4444;
-  --purple:  #A78BFA;
-
-  /* Category chip accent colors */
-  --chip-error:     #EF4444;
-  --chip-workload:  #34D399;
-  --chip-namespace: #4F8EF7;
-  --chip-events:    #FBBF24;
-  --chip-cluster:   #A78BFA;
-  --chip-docs:      #22D3EE;
+  /* Legacy mappings (kept for any straggler elements, mapped to light equivalents) */
+  --brand:        var(--accent);
+  --brand-hover:  #06b6d4;
+  --brand-dim:    var(--accent-bg);
+  --brand-border: var(--accent-bd);
+  --bg-base:      var(--paper);
+  --bg-surface:   var(--paper-2);
+  --bg-surface-2: var(--paper-2);
+  --bg-surface-3: var(--paper-3);
+  --border:       var(--rule);
+  --border-hover: var(--rule-2);
+  --text-primary: var(--ink);
+  --text-secondary: var(--ink-2);
+  --text-muted:   var(--ink-3);
+  --text-dim:     var(--ink-4);
+  --success:      var(--green);
+  --warning:      var(--amber);
+  --danger:       var(--red);
 
   /* Font stacks */
-  --sans: 'Inter', system-ui, -apple-system, sans-serif;
-  --mono: 'Fira Code', 'JetBrains Mono', ui-monospace, monospace;
+  --sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
 
-  --background: var(--bg-base);
-  --foreground: var(--text-primary);
+  --background: var(--paper);
+  --foreground: var(--ink);
 }
 
-/* ── Force dark background ───────────────────────────────────────────────── */
+/* ── Force Light background ───────────────────────────────────────────────── */
 html, body {
-  background-color: var(--bg-base) !important;
-  color: var(--text-primary);
+  background-color: var(--paper) !important;
+  color: var(--ink);
   min-height: 100%;
   font-family: var(--sans);
   -webkit-font-smoothing: antialiased;
@@ -68,25 +79,11 @@ html, body {
 /* ── Thin scrollbar ──────────────────────────────────────────────────────── */
 ::-webkit-scrollbar       { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #1E2D40; border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
-
-/* ── CRT scanline overlay ────────────────────────────────────────────────── */
-body::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 9999;
-  background: repeating-linear-gradient(
-    0deg, transparent, transparent 2px,
-    rgba(0,0,0,0.025) 2px, rgba(0,0,0,0.025) 4px
-  );
-}
+::-webkit-scrollbar-thumb { background: var(--rule-2); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--ink-4); }
 
 /* ── Keyframe Animations ─────────────────────────────────────────────────── */
 
-/* Spring-entry — used by all artifacts */
 @keyframes artifactSlideIn {
   from { opacity: 0; transform: translateY(10px) scale(0.98); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
@@ -98,19 +95,41 @@ body::after {
 }
 
 @keyframes pulseRing {
-  0%   { transform: scale(0.8); opacity: 0.7; }
-  70%  { transform: scale(1.6); opacity: 0; }
-  100% { transform: scale(1.6); opacity: 0; }
+  0%   { transform: scale(0.8); opacity: 0.8; }
+  70%  { transform: scale(1.8); opacity: 0; }
+  100% { transform: scale(1.8); opacity: 0; }
 }
 
 @keyframes blink {
   0%, 100% { opacity: 1; }
-  50%       { opacity: 0.25; }
+  50%       { opacity: 0.2; }
 }
 
 @keyframes dotBounce {
-  0%, 80%, 100% { transform: translateY(0);    opacity: 0.35; }
+  0%, 80%, 100% { transform: translateY(0);    opacity: 0.3; }
   40%           { transform: translateY(-5px); opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes springIn {
+  0%   { opacity: 0; transform: translateY(10px) scale(0.97); }
+  60%  { opacity: 1; transform: translateY(-2px) scale(1.005); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes overlayIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes modalSpring {
+  0%   { opacity: 0; transform: translateY(16px) scale(0.96); }
+  65%  { transform: translateY(-3px) scale(1.005); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 @keyframes logo-pulse {
@@ -122,32 +141,33 @@ body::after {
 /* ── Utility classes ─────────────────────────────────────────────────────── */
 
 .app-btn-primary {
-  background: var(--brand);
-  color: var(--bg-base);
+  background: var(--accent);
+  color: #fff;
   font-weight: 600;
   transition: background 0.15s, box-shadow 0.15s;
 }
 .app-btn-primary:hover:not(:disabled) {
   background: var(--brand-hover);
-  box-shadow: 0 0 12px rgba(34, 211, 238, 0.35);
+  box-shadow: 0 0 12px rgba(8, 145, 178, 0.2);
 }
-.app-btn-primary:disabled { background: var(--bg-surface-3); color: var(--text-muted); }
+.app-btn-primary:disabled { background: var(--rule); color: var(--ink-4); }
 
 .app-btn-ghost {
-  border: 1px solid var(--border);
-  color: var(--text-secondary);
-  transition: border-color 0.15s, color 0.15s;
+  border: 1px solid var(--rule);
+  color: var(--ink-3);
+  background: transparent;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
-.app-btn-ghost:hover { border-color: var(--brand-border); color: var(--brand); }
+.app-btn-ghost:hover { border-color: var(--accent-bd); color: var(--accent); background: var(--paper-2); }
 
 .app-input {
-  background: var(--bg-surface-3);
-  border: 1px solid var(--border);
-  color: var(--text-primary);
+  background: #ffffff;
+  border: 1px solid var(--rule);
+  color: var(--ink);
   transition: border-color 0.15s;
 }
-.app-input::placeholder { color: var(--text-dim); }
-.app-input:focus { outline: none; border-color: var(--brand); }
+.app-input::placeholder { color: var(--ink-4); }
+.app-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-bg); }
 
 input::placeholder { color: var(--text-dim); }
 button { font-family: var(--sans); }

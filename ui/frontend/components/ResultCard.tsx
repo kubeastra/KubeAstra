@@ -723,6 +723,44 @@ function renderNamespaces(r: Record<string, unknown>) {
   );
 }
 
+function renderNodes(r: Record<string, unknown>) {
+  const nodes = Array.isArray(r.nodes) ? r.nodes as Record<string, unknown>[] : [];
+  if (!nodes.length) return <p className="text-sm italic" style={{ color: "var(--text-muted)" }}>No nodes found.</p>;
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs mt-2 border-collapse">
+        <thead>
+          <tr className="text-left" style={{ color: "var(--text-muted)", borderBottom: "1px solid var(--border)" }}>
+            <th className="pb-1 pr-4">Name</th>
+            <th className="pb-1 pr-4">Status</th>
+            <th className="pb-1 pr-4">Version</th>
+            <th className="pb-1">OS</th>
+          </tr>
+        </thead>
+        <tbody>
+          {nodes.map((node, i) => {
+            const name = String(node.name ?? "");
+            const status = String(node.status ?? "");
+            const version = String(node.version ?? "");
+            const os = String(node.os_image ?? "");
+            const isReady = status === "Ready";
+            return (
+              <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}>
+                <td className="py-1.5 pr-4"><ResourceName>{name}</ResourceName></td>
+                <td className="py-1.5 pr-4 font-semibold text-xs" style={{ color: isReady ? "var(--success)" : "var(--danger)" }}>{status}</td>
+                <td className="py-1.5 pr-4 text-[11px]" style={{ color: "var(--text-secondary)" }}>{version}</td>
+                <td className="py-1.5 text-[11px]" style={{ color: "var(--text-muted)" }}>{os}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>{nodes.length} nodes total</p>
+    </div>
+  );
+}
+
 function renderFindWorkload(r: Record<string, unknown>) {
   const deployments = Array.isArray(r.deployments) ? r.deployments as Record<string, unknown>[] : [];
   const pods = Array.isArray(r.pods) ? r.pods as Record<string, unknown>[] : [];
@@ -822,6 +860,7 @@ const TOOL_LABELS: Record<string, string> = {
   get_endpoints: "kubectl get endpoints",
   get_rollout_status: "kubectl rollout status",
   get_namespaces: "kubectl get namespaces",
+  get_nodes: "kubectl get nodes",
   list_namespace_resources: "kubectl get all",
   list_services: "kubectl get services",
   get_resource_graph: "kubectl topology",
@@ -850,6 +889,7 @@ export default function ResultCard({ tool, result }: Props) {
   else if (tool === "get_events")           body = renderEvents(result);
   else if (tool === "list_contexts")        body = renderContextList(result);
   else if (tool === "get_namespaces")       body = renderNamespaces(result);
+  else if (tool === "get_nodes")            body = renderNodes(result);
   else if (tool === "list_namespace_resources") body = renderNamespaceResources(result);
   else if (tool === "list_services")        body = renderListServices(result);
   else if (tool === "find_workload")        body = renderFindWorkload(result);

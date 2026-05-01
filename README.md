@@ -12,9 +12,18 @@ An AI-powered Kubernetes troubleshooting assistant that lets teams investigate, 
 
 Combines live `kubectl` access with pluggable LLM providers (Gemini, Ollama/local, more coming) for root-cause analysis that turns cryptic Kubernetes failures into clear answers and actionable fix commands.
 
-<!-- TODO: embed 2-minute Loom demo video here — see docs/DEMO_SCRIPT.md -->
+## See it in action
 
-> **60-second demo:** `make demo` spins up a local kind cluster pre-seeded with six realistic broken workloads (CrashLoop, OOM, ImagePull, Pending, stuck PVC, RBAC denial). See [`demo/README.md`](demo/README.md).
+<!--
+  GitHub renders this <video> tag inline on the rendered README page.
+  The file lives in docs/kubeastra-demo.webm and is served via raw.githubusercontent.
+  If the embed ever fails, the link below is the fallback.
+-->
+<video src="https://github.com/kubeastra/KubeAstra/raw/main/docs/kubeastra-demo.webm" controls width="100%"></video>
+
+▶ [Watch the 90-second demo](docs/kubeastra-demo.webm) — Kubeastra walking through 7 real Kubernetes failures (CrashLoopBackOff, OOMKilled, ImagePullBackOff, stuck PVC, unschedulable pod, namespace-wide health, runbook generation).
+
+> Want to reproduce it locally? `make demo` spins up a kind cluster pre-seeded with six broken workloads. See [`demo/README.md`](demo/README.md).
 
 ---
 

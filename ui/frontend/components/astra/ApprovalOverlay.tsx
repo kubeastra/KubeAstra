@@ -30,44 +30,38 @@ interface ApprovalOverlayProps {
 function DiffView({ lines }: { lines: DiffLine[] }) {
   return (
     <div style={{
-      background: "#06090F",
-      border: "1px solid #1A2535",
-      borderRadius: 8, overflow: "hidden",
+      border: '1px solid var(--rule)', borderRadius: 8, overflow: 'hidden',
+      background: '#FAFAF8',
     }}>
       <div style={{
-        padding: "7px 14px",
-        borderBottom: "1px solid #1A2535",
-        display: "flex", alignItems: "center", gap: 8,
+        padding: '7px 14px', borderBottom: '1px solid var(--rule)',
+        background: 'var(--paper-2)',
+        display: 'flex', alignItems: 'center', gap: 8,
       }}>
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
-          stroke="#475569" strokeWidth="2" strokeLinecap="round">
+          stroke="var(--ink-4)" strokeWidth="2" strokeLinecap="round">
           <circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/>
           <path d="M6 21V9a9 9 0 009 9"/>
         </svg>
-        <span style={{ fontSize: 10, color: "#475569", fontFamily: "var(--mono)" }}>
+        <span style={{ fontSize: 10, color: 'var(--ink-3)', fontFamily: 'var(--mono)' }}>
           proposed changes
         </span>
-        <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-          <span style={{ fontSize: 9, color: "#EF4444", fontFamily: "var(--mono)", background: "rgba(239,68,68,0.1)", padding: "1px 6px", borderRadius: 3 }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+          <span style={{ fontSize: 9, fontFamily: 'var(--mono)', background: 'var(--red-bg)', color: 'var(--red)', padding: '1px 6px', borderRadius: 3 }}>
             -{lines.filter(l => l.t === "remove").length}
           </span>
-          <span style={{ fontSize: 9, color: "#34D399", fontFamily: "var(--mono)", background: "rgba(52,211,153,0.1)", padding: "1px 6px", borderRadius: 3 }}>
+          <span style={{ fontSize: 9, fontFamily: 'var(--mono)', background: 'var(--green-bg)', color: 'var(--green)', padding: '1px 6px', borderRadius: 3 }}>
             +{lines.filter(l => l.t === "add").length}
           </span>
         </div>
       </div>
-      <div style={{ padding: "8px 0", fontFamily: "var(--mono)", fontSize: 11, lineHeight: 1.8 }}>
+      <div style={{ padding: '6px 0', fontFamily: 'var(--mono)', fontSize: 11, lineHeight: 1.9 }}>
         {lines.map((l, i) => (
           <div key={i} style={{
-            padding: "0 14px",
-            background: l.t === "add" ? "rgba(52,211,153,0.08)" :
-                        l.t === "remove" ? "rgba(239,68,68,0.08)" :
-                        l.t === "hunk" ? "rgba(79,142,247,0.06)" : "transparent",
-            color: l.t === "add" ? "#34D399" :
-                   l.t === "remove" ? "#EF4444" :
-                   l.t === "hunk" ? "#4F8EF7" : "#475569",
-            borderLeft: l.t === "add" ? "2px solid #34D39960" :
-                        l.t === "remove" ? "2px solid #EF444460" : "2px solid transparent",
+            padding: '0 14px',
+            background: l.t === 'add' ? 'var(--green-bg)' : l.t === 'remove' ? 'var(--red-bg)' : l.t === 'hunk' ? 'var(--accent-b-bg)' : 'transparent',
+            color: l.t === 'add' ? 'var(--green)' : l.t === 'remove' ? 'var(--red)' : l.t === 'hunk' ? 'var(--accent-b)' : 'var(--ink-3)',
+            borderLeft: l.t === 'add' ? '3px solid var(--green-bd)' : l.t === 'remove' ? '3px solid var(--red-bd)' : '3px solid transparent',
           }}>
             {l.s}
           </div>
@@ -135,48 +129,44 @@ function SlideConfirm({ onConfirm }: { onConfirm: () => void }) {
 
   return (
     <div ref={trackRef} style={{
-      position: "relative", height: 52,
-      background: done ? "#0A2016" : "#0D0A07",
-      border: `1px solid ${done ? "#34D39960" : "#C8733A60"}`,
-      borderRadius: 10, overflow: "hidden",
-      userSelect: "none",
-      transition: "border-color 0.3s, background 0.3s",
+      position: 'relative', height: 52,
+      background: done ? 'var(--green-bg)' : 'var(--amber-bg)',
+      border: `1.5px solid ${done ? 'var(--green-bd)' : 'var(--amber-bd)'}`,
+      borderRadius: 10, overflow: 'hidden', userSelect: 'none',
+      transition: 'all 0.3s',
     }}>
-      {/* Fill */}
       <div style={{
-        position: "absolute", left: 0, top: 0, bottom: 0,
+        position: 'absolute', left: 0, top: 0, bottom: 0,
         width: `${pct * 100}%`,
-        background: done
-          ? "linear-gradient(90deg, rgba(52,211,153,0.2), rgba(52,211,153,0.08))"
-          : `rgba(200,115,58,${pct * 0.3})`,
-        transition: dragging ? "none" : "width 0.4s ease, background 0.3s",
+        background: `rgba(217,119,6,${pct * 0.12})`,
+        transition: dragging ? 'none' : 'width 0.4s ease',
       }}/>
-      {/* Text */}
       <div style={{
-        position: "absolute", inset: 0, display: "flex",
-        alignItems: "center", justifyContent: "center", pointerEvents: "none",
+        position: 'absolute', inset: 0, display: 'flex',
+        alignItems: 'center', justifyContent: 'center', pointerEvents: 'none',
       }}>
         <span style={{
-          fontSize: 11, fontWeight: 700, letterSpacing: "0.14em",
-          color: done ? "#34D399" : "#C8733A",
+          fontSize: 11, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase',
+          color: done ? 'var(--green)' : 'var(--amber)',
           opacity: done ? 1 : Math.max(0, 1 - pct * 1.8),
-          textTransform: "uppercase",
-          transition: "opacity 0.15s",
+          transition: 'opacity 0.15s',
         }}>
-          {done ? "✓ Fix Queued for Rollout" : "Slide to Confirm Execution"}
+          {done ? '✓ Fix Queued for Rollout' : 'Slide to Confirm Execution'}
         </span>
       </div>
-      {/* Thumb */}
       {!done && (
-        <div onMouseDown={onMouseDown} onTouchStart={onTouchStart} style={{
-          position: "absolute", left: pos + 2, top: 2, bottom: 2, width: THUMB,
-          background: "linear-gradient(135deg, #C8733A, #A05020)",
-          border: "1px solid #D4845A",
-          borderRadius: 7, cursor: "grab",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          boxShadow: `0 0 ${8 + pct * 16}px rgba(200,115,58,${0.3 + pct * 0.4})`,
-          transition: dragging ? "none" : "left 0.35s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s",
-        }}>
+        <div
+          onMouseDown={onMouseDown} onTouchStart={onTouchStart}
+          style={{
+            position: 'absolute', left: pos + 2, top: 2, bottom: 2, width: THUMB,
+            background: 'linear-gradient(135deg, #F59E0B, #D97706)',
+            border: '1px solid #FBBF24',
+            borderRadius: 7, cursor: 'grab',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: `0 2px ${4 + pct * 12}px rgba(217,119,6,${0.25 + pct * 0.35})`,
+            transition: dragging ? 'none' : 'left 0.35s cubic-bezier(0.34,1.56,0.64,1)',
+          }}
+        >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
             stroke="#fff" strokeWidth="2.5" strokeLinecap="round">
             <path d="M5 12h14M12 5l7 7-7 7"/>
@@ -221,53 +211,49 @@ export default function ApprovalOverlay({ onClose, onConfirm, onCopyCommand, act
 
   return (
     <div style={{
-      position: "fixed", inset: 0, zIndex: 100,
-      display: "flex", alignItems: "center", justifyContent: "center",
-      background: "rgba(7,9,20,0.85)",
-      backdropFilter: "blur(8px)",
-      animation: "overlayFadeIn 0.25s ease both",
+      position: 'fixed', inset: 0, zIndex: 100,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: 'rgba(26,26,24,0.4)', backdropFilter: 'blur(6px)',
+      animation: 'overlayIn 0.25s ease both',
     }}>
       <div style={{
-        width: 520, maxHeight: "85vh",
-        background: "#0C1220",
-        border: "1px solid rgba(200,115,58,0.3)",
-        borderRadius: 14, overflow: "hidden",
-        boxShadow: "0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(200,115,58,0.1)",
-        animation: "artifactSlideIn 0.4s cubic-bezier(0.34,1.56,0.64,1) both",
-        display: "flex", flexDirection: "column",
+        width: 540, maxHeight: '88vh',
+        background: '#FFFFFF',
+        border: '1px solid var(--rule)',
+        borderRadius: 16, overflow: 'hidden',
+        boxShadow: '0 32px 80px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.04)',
+        animation: 'modalSpring 0.4s cubic-bezier(0.34,1.56,0.64,1) both',
+        display: 'flex', flexDirection: 'column',
       }}>
         {/* Header */}
         <div style={{
-          padding: "14px 18px",
-          background: "rgba(200,115,58,0.08)",
-          borderBottom: "1px solid rgba(200,115,58,0.15)",
-          display: "flex", alignItems: "center", gap: 10,
-          flexShrink: 0,
+          padding: '14px 18px', background: 'var(--amber-bg)',
+          borderBottom: '1px solid var(--amber-bd)',
+          display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
         }}>
           <div style={{
             width: 32, height: 32, borderRadius: 8,
-            background: "rgba(200,115,58,0.15)",
-            border: "1px solid rgba(200,115,58,0.3)",
-            display: "flex", alignItems: "center", justifyContent: "center",
+            background: '#FEF3C7', border: '1px solid #FDE68A',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-              stroke="#C8733A" strokeWidth="2" strokeLinecap="round">
+              stroke="var(--amber)" strokeWidth="2.5" strokeLinecap="round">
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
               <path d="M7 11V7a5 5 0 0110 0v4"/>
             </svg>
           </div>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "#E2E8F0" }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
               Impact Preview — Approval Required
             </div>
-            <div style={{ fontSize: 10, color: "#C8733A", fontFamily: "var(--mono)", marginTop: 1 }}>
+            <div style={{ fontSize: 10, color: 'var(--amber)', fontFamily: 'var(--mono)', marginTop: 1 }}>
               {namespace ? `${namespace} · ` : ""}{targetResource || "cluster resource"}
             </div>
           </div>
           <div style={{ flex: 1 }}/>
           <button onClick={onClose} style={{
-            background: "none", border: "none", cursor: "pointer", padding: 4,
-            color: "#475569",
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: 'var(--ink-4)', padding: 4, borderRadius: 5,
           }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -276,27 +262,26 @@ export default function ApprovalOverlay({ onClose, onConfirm, onCopyCommand, act
           </button>
         </div>
 
-        <div style={{ flex: 1, overflowY: "auto", padding: "16px 18px", display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
           {/* Preflight */}
           <div>
-            <div style={{ fontSize: 10, color: "#475569", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>
+            <div style={{ fontSize: 10, color: 'var(--ink-4)', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, marginBottom: 8 }}>
               Preflight Checks
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               {PREFLIGHT_CHECKS.map((c, i) => (
                 <div key={i} style={{
-                  display: "flex", alignItems: "center", gap: 8,
-                  padding: "5px 10px",
-                  background: "rgba(52,211,153,0.05)",
-                  border: "1px solid rgba(52,211,153,0.15)",
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '6px 10px',
+                  background: 'var(--green-bg)', border: '1px solid var(--green-bd)',
                   borderRadius: 5,
-                  animation: `artifactSlideIn 0.3s cubic-bezier(0.34,1.56,0.64,1) ${i * 60}ms both`,
+                  animation: `springIn 0.3s cubic-bezier(0.34,1.56,0.64,1) ${i * 70}ms both`,
                 }}>
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
-                    stroke="#34D399" strokeWidth="2.5" strokeLinecap="round">
+                    stroke="var(--green)" strokeWidth="2.5" strokeLinecap="round">
                     <path d="M20 6L9 17l-5-5"/>
                   </svg>
-                  <span style={{ fontSize: 11, color: "#64748B" }}>{c}</span>
+                  <span style={{ fontSize: 11, color: 'var(--ink-2)' }}>{c}</span>
                 </div>
               ))}
             </div>
@@ -305,8 +290,8 @@ export default function ApprovalOverlay({ onClose, onConfirm, onCopyCommand, act
           {/* Commands */}
           {diffLines.length > 0 && (
             <div>
-              <div style={{ fontSize: 10, color: "#475569", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>
-                Commands to Execute
+              <div style={{ fontSize: 10, color: 'var(--ink-4)', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, marginBottom: 8 }}>
+                Proposed Changes
               </div>
               <DiffView lines={diffLines}/>
             </div>
@@ -319,11 +304,11 @@ export default function ApprovalOverlay({ onClose, onConfirm, onCopyCommand, act
                 onClick={() => setMode("execute")}
                 style={{
                   flex: 1, padding: "11px",
-                  background: "linear-gradient(135deg, rgba(200,115,58,0.2), rgba(200,115,58,0.1))",
-                  border: "1px solid rgba(200,115,58,0.5)",
+                  background: 'var(--amber-bg)',
+                  border: '1px solid var(--amber-bd)',
                   borderRadius: 8, cursor: "pointer",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                  color: "#C8733A", fontSize: 12, fontWeight: 600,
+                  color: 'var(--amber)', fontSize: 12, fontWeight: 600,
                 }}
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
@@ -336,11 +321,11 @@ export default function ApprovalOverlay({ onClose, onConfirm, onCopyCommand, act
                 onClick={handleCopy}
                 style={{
                   flex: 1, padding: "11px",
-                  background: "rgba(34,211,238,0.08)",
-                  border: "1px solid rgba(34,211,238,0.25)",
+                  background: 'var(--accent-bg)',
+                  border: '1px solid var(--accent-bd)',
                   borderRadius: 8, cursor: "pointer",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                  color: "#22D3EE", fontSize: 12, fontWeight: 600,
+                  color: 'var(--accent)', fontSize: 12, fontWeight: 600,
                 }}
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
@@ -359,23 +344,19 @@ export default function ApprovalOverlay({ onClose, onConfirm, onCopyCommand, act
 
           {(confirmed || mode === "copy") && (
             <div style={{
-              padding: "16px", textAlign: "center",
-              background: "rgba(52,211,153,0.08)",
-              border: "1px solid rgba(52,211,153,0.2)",
-              borderRadius: 10,
-              animation: "artifactSlideIn 0.35s ease both",
+              padding: '18px', textAlign: 'center',
+              background: 'var(--green-bg)', border: '1px solid var(--green-bd)',
+              borderRadius: 10, animation: 'springIn 0.35s ease both',
             }}>
-              <div style={{ fontSize: 22, marginBottom: 8 }}>
-                <svg width="36" height="36" viewBox="0 0 24 24" fill="none"
-                  stroke="#34D399" strokeWidth="1.5" strokeLinecap="round" style={{ margin: "0 auto", display: "block" }}>
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                  <path d="M22 4L12 14.01l-3-3"/>
-                </svg>
-              </div>
-              <div style={{ fontSize: 13, color: "#34D399", fontWeight: 600, marginBottom: 4 }}>
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none"
+                stroke="var(--green)" strokeWidth="1.5" strokeLinecap="round" style={{ margin: "0 auto 10px", display: "block" }}>
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                <path d="M22 4L12 14.01l-3-3"/>
+              </svg>
+              <div style={{ fontSize: 13, color: 'var(--green)', fontWeight: 600, marginBottom: 4 }}>
                 {mode === "copy" ? "Commands Copied to Clipboard" : "Fix Applied — Rollout in Progress"}
               </div>
-              <div style={{ fontSize: 10, color: "#475569", fontFamily: "var(--mono)" }}>
+              <div style={{ fontSize: 10, color: 'var(--ink-3)', fontFamily: "var(--mono)" }}>
                 {mode === "copy" ? "Paste into your terminal" : "monitoring rollout status…"}
               </div>
             </div>

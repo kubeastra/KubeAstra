@@ -160,15 +160,15 @@ function SSHDrawer({ onConnect, onDisconnect, connected }: {
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <span style={{
-          fontSize: 10, fontFamily: "var(--mono)", fontWeight: 600, color: "#22D3EE",
-          background: "rgba(34,211,238,0.1)", border: "1px solid rgba(34,211,238,0.2)",
+          fontSize: 10, fontFamily: "var(--mono)", fontWeight: 600, color: "var(--accent)",
+          background: "var(--accent-bg)", border: "1px solid var(--accent-bd)",
           borderRadius: 4, padding: "3px 7px", display: "flex", alignItems: "center", gap: 4,
         }}>
-          <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#22D3EE", animation: "blink 2s infinite" }}/>
+          <span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--accent)", animation: "blink 2s infinite" }}/>
           SSH: {connected.username}@{connected.host}
         </span>
         <button onClick={() => { onDisconnect(); setTestStatus("idle"); setPassword(""); }}
-          style={{ fontSize: 10, color: "#475569", background: "none", border: "1px solid #1A2535", borderRadius: 4, padding: "3px 7px", cursor: "pointer" }}>
+          style={{ fontSize: 10, color: "var(--ink-4)", background: "none", border: "1px solid var(--rule)", borderRadius: 4, padding: "3px 7px", cursor: "pointer" }}>
           Disconnect
         </button>
       </div>
@@ -178,31 +178,31 @@ function SSHDrawer({ onConnect, onDisconnect, connected }: {
   return (
     <div style={{ position: "relative" }}>
       <button onClick={() => setOpen(v => !v)}
-        style={{ fontSize: 10, color: "#475569", background: "none", border: "1px solid #1A2535", borderRadius: 4, padding: "3px 7px", cursor: "pointer", fontFamily: "var(--mono)" }}>
+        style={{ fontSize: 10, color: "var(--ink-4)", background: "none", border: "1px solid var(--rule)", borderRadius: 4, padding: "3px 7px", cursor: "pointer", fontFamily: "var(--mono)" }}>
         SSH Cluster
       </button>
       {open && (
         <div style={{
           position: "absolute", right: 0, top: 32, zIndex: 50, width: 300, padding: 14,
-          background: "#0C1220", border: "1px solid rgba(34,211,238,0.2)", borderRadius: 10,
-          boxShadow: "0 16px 48px rgba(0,0,0,0.5)", display: "flex", flexDirection: "column", gap: 8,
+          background: "#FFFFFF", border: "1px solid var(--accent-bd)", borderRadius: 10,
+          boxShadow: "0 4px 20px rgba(0,0,0,0.08)", display: "flex", flexDirection: "column", gap: 8,
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: "#E2E8F0" }}>Connect to Remote Cluster</span>
-            <button onClick={() => setOpen(false)} style={{ background: "none", border: "none", color: "#475569", cursor: "pointer", fontSize: 16 }}>&times;</button>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>Connect to Remote Cluster</span>
+            <button onClick={() => setOpen(false)} style={{ background: "none", border: "none", color: "var(--ink-4)", cursor: "pointer", fontSize: 16 }}>&times;</button>
           </div>
           <div style={{ display: "flex", gap: 6 }}>
             <input value={host} onChange={e => setHost(e.target.value)} placeholder="10.0.1.5"
-              style={{ flex: 1, background: "#080D14", border: "1px solid #1A2535", borderRadius: 6, padding: "6px 10px", color: "#E2E8F0", fontSize: 12, outline: "none" }}/>
-            <input value={port} onChange={e => setPort(e.target.value)} style={{ width: 50, background: "#080D14", border: "1px solid #1A2535", borderRadius: 6, padding: "6px 10px", color: "#E2E8F0", fontSize: 12, outline: "none" }}/>
+              style={{ flex: 1, background: "var(--paper)", border: "1px solid var(--rule)", borderRadius: 6, padding: "6px 10px", color: "var(--ink)", fontSize: 12, outline: "none" }}/>
+            <input value={port} onChange={e => setPort(e.target.value)} style={{ width: 50, background: "var(--paper)", border: "1px solid var(--rule)", borderRadius: 6, padding: "6px 10px", color: "var(--ink)", fontSize: 12, outline: "none" }}/>
           </div>
           <input value={username} onChange={e => setUsername(e.target.value)} placeholder="ubuntu"
-            style={{ background: "#080D14", border: "1px solid #1A2535", borderRadius: 6, padding: "6px 10px", color: "#E2E8F0", fontSize: 12, outline: "none" }}/>
+            style={{ background: "var(--paper)", border: "1px solid var(--rule)", borderRadius: 6, padding: "6px 10px", color: "var(--ink)", fontSize: 12, outline: "none" }}/>
           <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••"
-            style={{ background: "#080D14", border: "1px solid #1A2535", borderRadius: 6, padding: "6px 10px", color: "#E2E8F0", fontSize: 12, outline: "none" }}/>
-          {testStatus === "err" && <div style={{ fontSize: 10, color: "#EF4444", padding: "4px 8px", background: "rgba(239,68,68,0.08)", borderRadius: 4 }}>{testError}</div>}
+            style={{ background: "var(--paper)", border: "1px solid var(--rule)", borderRadius: 6, padding: "6px 10px", color: "var(--ink)", fontSize: 12, outline: "none" }}/>
+          {testStatus === "err" && <div style={{ fontSize: 10, color: "var(--red)", padding: "4px 8px", background: "var(--red-bg)", borderRadius: 4 }}>{testError}</div>}
           <button onClick={handleConnect} disabled={!host.trim() || !username.trim() || !password || testStatus === "testing"}
-            style={{ padding: "8px", background: "rgba(34,211,238,0.15)", border: "1px solid rgba(34,211,238,0.3)", borderRadius: 6, color: "#22D3EE", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+            style={{ padding: "8px", background: "var(--accent-bg)", border: "1px solid var(--accent-bd)", borderRadius: 6, color: "var(--accent)", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
             {testStatus === "testing" ? "Testing…" : "Connect & Test"}
           </button>
         </div>
@@ -344,39 +344,44 @@ export default function ChatPage() {
   const isInvestigation = (tool?: string) => tool === "investigate_pod" || tool === "investigate_workload";
 
   return (
-    <div style={{ width: "100vw", height: "100vh", background: "var(--bg-base)", display: "flex", flexDirection: "column", overflow: "hidden", position: "relative" }}>
+    <div style={{ width: "100vw", height: "100vh", background: "var(--paper)", display: "flex", flexDirection: "column", overflow: "hidden", position: "relative" }}>
 
       {/* ── Top bar ── */}
       <div style={{
-        height: 48, flexShrink: 0, background: "var(--bg-surface)", borderBottom: "1px solid var(--border)",
-        display: "flex", alignItems: "center", padding: "0 18px", gap: 12,
+        height: 50, flexShrink: 0, background: "#FFFFFF", borderBottom: "1px solid var(--rule)",
+        boxShadow: "0 1px 0 var(--rule)",
+        display: "flex", alignItems: "center", padding: "0 20px", gap: 14,
       }}>
         <svg viewBox="0 0 20 20" width="18" height="18">
           <polygon points="10,0.5 18.7,5.25 18.7,14.75 10,19.5 1.3,14.75 1.3,5.25"
-            fill="none" stroke="#22D3EE" strokeWidth="0.8" opacity="0.4"/>
+            fill="none" stroke="var(--accent)" strokeWidth="0.9" opacity="0.5"/>
           <path d="M10,3 L10.7,8.2 L15.4,5.9 L11.5,10 L15.4,14.1 L10.7,11.8 L10,17 L9.3,11.8 L4.6,14.1 L8.5,10 L4.6,5.9 L9.3,8.2 Z"
-            fill="#22D3EE" opacity="0.9"/>
+            fill="var(--accent)"/>
         </svg>
-        <span style={{ fontSize: 13, fontWeight: 700, color: "#E2E8F0", letterSpacing: "-0.01em" }}>
-          Kube<span style={{ color: "#22D3EE" }}>Astra</span>
+        <span style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", letterSpacing: "-0.02em" }}>
+          Kube<span style={{ color: "var(--accent)" }}>Astra</span>
         </span>
-        <div style={{ width: 1, height: 18, background: "var(--border)" }}/>
-        <span style={{ fontSize: 10, color: "#475569", fontFamily: "var(--mono)" }}>Astra Intent</span>
+        <div style={{ width: 1, height: 18, background: "var(--rule)" }}/>
+        <span style={{ fontSize: 10, color: "var(--ink-4)", fontFamily: "var(--mono)", fontWeight: 500 }}>Astra Intent</span>
         <div style={{ flex: 1 }}/>
 
         <SSHDrawer connected={sshCreds} onConnect={handleConnect} onDisconnect={handleDisconnect}/>
 
         {healthLoaded && health && (
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <div style={{ width: 6, height: 6, borderRadius: "50%", background: health.kubectl_available ? "#34D399" : "#FBBF24", boxShadow: health.kubectl_available ? "0 0 5px #34D399" : "none" }}/>
-            <span style={{ fontSize: 10, color: "#475569", fontFamily: "var(--mono)" }}>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 6,
+            background: "var(--paper-2)", border: "1px solid var(--rule)",
+            borderRadius: 6, padding: "4px 10px",
+          }}>
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: health.kubectl_available ? "var(--green)" : "var(--amber)", boxShadow: health.kubectl_available ? "0 0 0 2px #BBF7D0" : "none" }}/>
+            <span style={{ fontSize: 10, color: "var(--ink-2)", fontFamily: "var(--mono)", fontWeight: 500 }}>
               {sshCreds ? `${sshCreds.host}` : health.kubectl_available ? "local-cluster" : "no cluster"}
             </span>
           </div>
         )}
 
         {messages.length > 0 && (
-          <button onClick={handleNewChat} style={{ fontSize: 10, color: "#475569", background: "none", border: "1px solid #1A2535", borderRadius: 4, padding: "3px 8px", cursor: "pointer" }}>
+          <button onClick={handleNewChat} style={{ fontSize: 10, color: "var(--ink-4)", background: "none", border: "1px solid var(--rule)", borderRadius: 4, padding: "4px 10px", cursor: "pointer", fontWeight: 500 }}>
             New chat
           </button>
         )}
@@ -384,41 +389,41 @@ export default function ChatPage() {
 
       {/* ── Reconnect banner ── */}
       {pendingReconnect && !sshCreds && (
-        <div style={{ padding: "8px 18px", background: "rgba(34,211,238,0.05)", borderBottom: "1px solid rgba(34,211,238,0.15)", display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
-          <span style={{ color: "#22D3EE" }}>Previous SSH: {pendingReconnect.username}@{pendingReconnect.host}</span>
+        <div style={{ padding: "8px 18px", background: "var(--accent-bg)", borderBottom: "1px solid var(--accent-bd)", display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+          <span style={{ color: "var(--accent)" }}>Previous SSH: {pendingReconnect.username}@{pendingReconnect.host}</span>
           <input type="password" placeholder="Password" id="reconnect-pw"
-            style={{ background: "#080D14", border: "1px solid #1A2535", borderRadius: 4, padding: "4px 8px", color: "#E2E8F0", fontSize: 11, outline: "none", width: 140 }}
+            style={{ background: "#FFFFFF", border: "1px solid var(--rule)", borderRadius: 4, padding: "4px 8px", color: "var(--ink)", fontSize: 11, outline: "none", width: 140 }}
             onKeyDown={e => { if (e.key === "Enter") { handleReconnect((e.target as HTMLInputElement).value); } }}/>
           <button onClick={() => { const el = document.getElementById("reconnect-pw") as HTMLInputElement; if (el) handleReconnect(el.value); }}
-            style={{ fontSize: 10, color: "#22D3EE", background: "rgba(34,211,238,0.1)", border: "1px solid rgba(34,211,238,0.2)", borderRadius: 4, padding: "3px 8px", cursor: "pointer" }}>
+            style={{ fontSize: 10, color: "var(--accent)", background: "#FFFFFF", border: "1px solid var(--accent-bd)", borderRadius: 4, padding: "3px 8px", cursor: "pointer" }}>
             Reconnect
           </button>
           <button onClick={() => { setPendingReconnect(null); deleteSshTarget(sessionId); }}
-            style={{ fontSize: 10, color: "#475569", background: "none", border: "none", cursor: "pointer" }}>
+            style={{ fontSize: 10, color: "var(--ink-4)", background: "none", border: "none", cursor: "pointer" }}>
             Dismiss
           </button>
         </div>
       )}
 
       {/* ── Thread ── */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "24px 18px", display: "flex", flexDirection: "column", gap: 20 }}>
-        <div style={{ maxWidth: 720, width: "100%", margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: "28px 22px", display: "flex", flexDirection: "column", gap: 22, background: "var(--paper)" }}>
+        <div style={{ maxWidth: 720, width: "100%", margin: "0 auto", display: "flex", flexDirection: "column", gap: 22 }}>
 
           {!historyLoaded && (
-            <div style={{ textAlign: "center", padding: 32, fontSize: 12, color: "#475569" }}>Loading history…</div>
+            <div style={{ textAlign: "center", padding: 32, fontSize: 12, color: "var(--ink-4)" }}>Loading history…</div>
           )}
 
           {/* Welcome */}
           {isEmpty && (
-            <div style={{ textAlign: "center", paddingTop: 80, animation: "artifactSlideIn 0.5s ease both" }}>
-              <svg viewBox="0 0 48 48" width="48" height="48" style={{ margin: "0 auto 16px", display: "block" }}>
+            <div style={{ textAlign: "center", paddingTop: 80, animation: "springIn 0.5s ease both" }}>
+              <svg viewBox="0 0 48 48" width="52" height="52" style={{ margin: "0 auto 16px", display: "block" }}>
                 <polygon points="24,2 43.2,13 43.2,35 24,46 4.8,35 4.8,13"
-                  fill="none" stroke="#22D3EE" strokeWidth="1" opacity="0.3"/>
+                  fill="none" stroke="var(--accent)" strokeWidth="1.2" opacity="0.35"/>
                 <path d="M24,7 L25.7,19.5 L37,14.2 L27.5,24 L37,33.8 L25.7,28.5 L24,41 L22.3,28.5 L11,33.8 L20.5,24 L11,14.2 L22.3,19.5 Z"
-                  fill="#22D3EE"/>
+                  fill="var(--accent)"/>
               </svg>
-              <div style={{ fontSize: 16, fontWeight: 600, color: "#94A3B8", marginBottom: 8 }}>Astra is ready</div>
-              <div style={{ fontSize: 13, color: "#2A3A50" }}>Ask anything about your cluster</div>
+              <div style={{ fontSize: 17, fontWeight: 600, color: "var(--ink-2)", marginBottom: 6 }}>Astra is ready</div>
+              <div style={{ fontSize: 13, color: "var(--ink-4)" }}>Ask anything about your cluster</div>
             </div>
           )}
 
@@ -466,8 +471,29 @@ export default function ChatPage() {
                 <AstraMessage key={m.id} time={formatTime()}>
                   <ResultCard tool={m.tool} result={m.result}/>
                   {m.text && (
-                    <div style={{ marginTop: 10, fontSize: 13, color: "#94A3B8", lineHeight: 1.6 }}>
-                      <ReactMarkdown>{m.text}</ReactMarkdown>
+                    <div style={{
+                      marginTop: 14,
+                      background: "linear-gradient(135deg, rgba(16,163,127,0.06) 0%, rgba(16,163,127,0.02) 100%)",
+                      border: "1px solid rgba(16,163,127,0.2)",
+                      borderLeft: "3px solid var(--accent)",
+                      borderRadius: 10,
+                      padding: "14px 18px",
+                      position: "relative",
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                        <svg viewBox="0 0 16 16" width="13" height="13">
+                          <path d="M8,2 L8.6,6.4 L12.5,4.4 L9.4,8 L12.5,11.6 L8.6,9.6 L8,14 L7.4,9.6 L3.5,11.6 L6.6,8 L3.5,4.4 L7.4,6.4 Z" fill="var(--accent)"/>
+                        </svg>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: "var(--accent)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Astra Insight</span>
+                      </div>
+                      <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
+                        <ReactMarkdown>{m.text}</ReactMarkdown>
+                      </div>
+                    </div>
+                  )}
+                  {m.error && (
+                    <div style={{ fontSize: 11, color: "var(--red)", marginTop: 8, padding: "8px 12px", background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 6, display: "flex", alignItems: "center", gap: 6 }}>
+                      <span>⚠</span> {m.error}
                     </div>
                   )}
                 </AstraMessage>
@@ -477,10 +503,10 @@ export default function ChatPage() {
             // Plain text
             return (
               <AstraMessage key={m.id} time={formatTime()}>
-                <div style={{ fontSize: 13, color: "#94A3B8", lineHeight: 1.6 }}>
+                <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.6 }}>
                   <ReactMarkdown>{m.text}</ReactMarkdown>
                 </div>
-                {m.error && <div style={{ fontSize: 11, color: "#EF4444", marginTop: 4 }}>{m.error}</div>}
+                {m.error && <div style={{ fontSize: 11, color: "var(--red)", marginTop: 4 }}>{m.error}</div>}
               </AstraMessage>
             );
           })}
