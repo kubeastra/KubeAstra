@@ -155,8 +155,19 @@ function renderAnalyzeError(r: Record<string, unknown>) {
   );
 }
 
+function statusColor(s: string): string {
+  const v = s.toLowerCase();
+  if (v === "running" || v === "succeeded" || v === "completed") return "var(--success)";
+  if (v === "pending" || v === "containercreating") return "var(--warning)";
+  if (["crashloopbackoff", "imagepullbackoff", "errimagepull", "oomkilled", "error",
+       "createcontainerconfigerror", "runcontainererror"].includes(v)) return "var(--danger)";
+  if (v.startsWith("init:")) return "var(--warning)";
+  return "var(--text-secondary)";
+}
+
 function renderPodList(r: Record<string, unknown>) {
   const pods = Array.isArray(r.pods) ? r.pods as Record<string, unknown>[] : [];
+  const isAllNs = r.namespace === "*";
   if (!pods.length) return <p className="text-sm italic" style={{ color: "var(--text-muted)" }}>{String(r.error ?? "No pods found")}</p>;
   return (
     <div className="overflow-x-auto">
@@ -164,6 +175,7 @@ function renderPodList(r: Record<string, unknown>) {
         <thead>
           <tr className="text-left" style={{ color: "var(--text-muted)", borderBottom: "1px solid var(--border)" }}>
             <th className="pb-1 pr-4">Name</th>
+            {isAllNs && <th className="pb-1 pr-4">Namespace</th>}
             <th className="pb-1 pr-4">Status</th>
             <th className="pb-1 pr-4">Ready</th>
             <th className="pb-1">Restarts</th>
@@ -171,14 +183,21 @@ function renderPodList(r: Record<string, unknown>) {
         </thead>
         <tbody>
           {pods.map((p, i) => {
-            const status = String(p.status ?? "");
-            const isOk = status === "Running";
+            const status = String(p.status ?? p.phase ?? "");
+            const restarts = Number(p.restarts ?? p.restart_count ?? 0);
+            const color = statusColor(status);
+            const isBad = color === "var(--danger)";
             return (
-              <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}>
-                <td className="py-1 pr-4"><ResourceName>{String(p.name ?? "")}</ResourceName></td>
-                <td className="py-1 pr-4 font-semibold text-xs" style={{ color: isOk ? "var(--success)" : "var(--danger)" }}>{status}</td>
-                <td className="py-1 pr-4 text-xs" style={{ color: "var(--text-secondary)" }}>{String(p.ready ?? "")}</td>
-                <td className="py-1 text-xs" style={{ color: "var(--text-secondary)" }}>{String(p.restarts ?? "0")}</td>
+              <tr key={i} style={{
+                borderBottom: "1px solid var(--border)",
+                borderLeft: isBad ? `2px solid ${color}` : "2px solid transparent",
+                background: isBad ? "rgba(239,68,68,0.04)" : "transparent",
+              }}>
+                <td className="py-1.5 pr-4 pl-1"><ResourceName>{String(p.name ?? "")}</ResourceName></td>
+                {isAllNs && <td className="py-1.5 pr-4 text-[11px]" style={{ color: "var(--text-muted)" }}>{String(p.namespace ?? "")}</td>}
+                <td className="py-1.5 pr-4 font-semibold text-xs" style={{ color }}>{status}</td>
+                <td className="py-1.5 pr-4 text-xs" style={{ color: "var(--text-secondary)" }}>{String(p.ready ?? "")}</td>
+                <td className="py-1.5 text-xs" style={{ color: restarts > 0 ? "var(--warning)" : "var(--text-secondary)" }}>{restarts}</td>
               </tr>
             );
           })}
@@ -199,6 +218,9 @@ function renderEvents(r: Record<string, unknown>) {
     <div className="space-y-2 mt-1">
       {events.map((e, i) => {
         const isWarn = String(e.type ?? "").toLowerCase() === "warning";
+        const involved = e.involved_object as Record<string, unknown> | undefined;
+        const objName = involved?.name ? String(involved.name) : "";
+        const objKind = involved?.kind ? String(involved.kind) : "";
         return (
           <div
             key={i}
@@ -208,12 +230,17 @@ function renderEvents(r: Record<string, unknown>) {
               background: isWarn ? "rgba(245,158,11,0.06)" : "var(--brand-dim)",
             }}
           >
-            <div className="flex items-center gap-2 mb-0.5">
+            <div className="flex items-center gap-2 mb-0.5 flex-wrap">
               <span className="font-semibold" style={{ color: isWarn ? "var(--warning)" : "var(--brand)" }}>
                 {String(e.type ?? "Normal")}
               </span>
               <span style={{ color: "var(--text-muted)" }}>{String(e.reason ?? "")}</span>
-              <span className="ml-auto" style={{ color: "var(--text-muted)" }}>{String(e.age ?? e.first_time ?? "")}</span>
+              {objName && (
+                <span className="font-mono px-1 py-0.5 rounded text-[10px]" style={{ background: "var(--bg-surface-3)", color: "var(--text-secondary)", border: "1px solid var(--border)" }}>
+                  {objKind ? `${objKind}/` : ""}{objName}
+                </span>
+              )}
+              <span className="ml-auto" style={{ color: "var(--text-muted)" }}>{String(e.age ?? e.first_time ?? e.last_timestamp ?? "")}</span>
             </div>
             <p style={{ color: "var(--text-secondary)" }}>{String(e.message ?? "")}</p>
           </div>
@@ -224,8 +251,37 @@ function renderEvents(r: Record<string, unknown>) {
 }
 
 function renderInvestigate(r: Record<string, unknown>) {
+  const classification = r.classification as Record<string, unknown> | undefined;
+  const describe = r.describe as Record<string, unknown> | undefined;
+  const highlights = describe?.highlights as Record<string, unknown> | undefined;
+  const logsCurrent = r.logs_current as Record<string, unknown> | undefined;
+  const logsPrevious = r.logs_previous as Record<string, unknown> | undefined;
+  const events = r.events as Record<string, unknown> | undefined;
+
   return (
     <>
+      {/* Classification badge */}
+      {classification && (
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-xs font-semibold px-2 py-1 rounded" style={{
+            background: classification.mode === "CrashLoopBackOff" ? "rgba(239,68,68,0.12)" :
+                         classification.mode === "ImagePullBackOff" ? "rgba(239,68,68,0.12)" :
+                         classification.mode === "Pending" ? "rgba(245,158,11,0.12)" :
+                         "var(--brand-dim)",
+            color: classification.mode === "CrashLoopBackOff" ? "var(--danger)" :
+                   classification.mode === "ImagePullBackOff" ? "var(--danger)" :
+                   classification.mode === "Pending" ? "var(--warning)" :
+                   "var(--brand)",
+            border: `1px solid ${classification.mode === "other" ? "var(--brand-border)" : "currentColor"}`,
+          }}>
+            {String(classification.mode ?? "unknown")}
+          </span>
+          <ResourceName>{String(r.pod_name ?? "")}</ResourceName>
+          <span className="text-xs" style={{ color: "var(--text-muted)" }}>in {String(r.namespace ?? "")}</span>
+        </div>
+      )}
+
+      {/* Steps completed */}
       {Array.isArray(r.steps_run) && (
         <Section title="Steps completed">
           <div className="flex flex-wrap gap-1">
@@ -235,31 +291,79 @@ function renderInvestigate(r: Record<string, unknown>) {
           </div>
         </Section>
       )}
-      {r.pod_info && typeof r.pod_info === "object" && (
-        <Section title="Pod info">
+
+      {/* Describe highlights */}
+      {highlights && (
+        <Section title="Pod details">
           <div className="grid grid-cols-2 gap-x-4 text-xs mt-1">
-            {Object.entries(r.pod_info as Record<string, unknown>).slice(0, 8).map(([k, v]) => (
-              <div key={k} className="flex gap-1 py-0.5">
-                <span className="min-w-[90px]" style={{ color: "var(--text-muted)" }}>{k}:</span>
-                <span style={{ color: "var(--text-primary)" }}>{String(v)}</span>
+            {highlights.restart_count !== undefined && (
+              <div className="flex gap-1 py-0.5">
+                <span className="min-w-[100px]" style={{ color: "var(--text-muted)" }}>Restarts:</span>
+                <span style={{ color: Number(highlights.restart_count) > 0 ? "var(--warning)" : "var(--text-primary)" }}>{String(highlights.restart_count)}</span>
               </div>
-            ))}
+            )}
+            {String(highlights.state ?? "") !== "" && (
+              <div className="flex gap-1 py-0.5">
+                <span className="min-w-[100px]" style={{ color: "var(--text-muted)" }}>State:</span>
+                <span style={{ color: "var(--text-primary)" }}>{String(highlights.state)}</span>
+              </div>
+            )}
+            {String(highlights.last_state ?? "") !== "" && highlights.last_state != null && (
+              <div className="flex gap-1 py-0.5">
+                <span className="min-w-[100px]" style={{ color: "var(--text-muted)" }}>Last state:</span>
+                <span style={{ color: "var(--warning)" }}>{String(highlights.last_state)}</span>
+              </div>
+            )}
+            {String(highlights.ready ?? "") !== "" && (
+              <div className="flex gap-1 py-0.5">
+                <span className="min-w-[100px]" style={{ color: "var(--text-muted)" }}>Ready:</span>
+                <span style={{ color: String(highlights.ready) === "True" ? "var(--success)" : "var(--danger)" }}>{String(highlights.ready)}</span>
+              </div>
+            )}
           </div>
         </Section>
       )}
-      {r.logs && typeof r.logs === "object" && (
-        <Section title="Logs">
-          {Object.entries(r.logs as Record<string, unknown>).map(([container, lines]) => (
-            <div key={container}>
-              <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>Container: {container}</p>
-              <CodeBlock code={String(lines)} />
-            </div>
-          ))}
+
+      {/* Container logs (current) */}
+      {logsCurrent && typeof logsCurrent === "object" && logsCurrent.logs && (
+        <Section title="">
+          <details>
+            <summary className="text-xs font-medium cursor-pointer select-none py-1" style={{ color: "var(--brand)", listStyle: "none" }}>
+              <span className="flex items-center gap-1.5">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                Container logs (current)
+              </span>
+            </summary>
+            <div className="mt-1 max-h-64 overflow-y-auto"><CodeBlock code={String(logsCurrent.logs)} /></div>
+          </details>
         </Section>
       )}
+
+      {/* Container logs (previous / crashed) */}
+      {logsPrevious && typeof logsPrevious === "object" && logsPrevious.logs && (
+        <Section title="">
+          <details>
+            <summary className="text-xs font-medium cursor-pointer select-none py-1" style={{ color: "var(--warning)", listStyle: "none" }}>
+              <span className="flex items-center gap-1.5">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                Container logs (previous crash)
+              </span>
+            </summary>
+            <div className="mt-1 max-h-64 overflow-y-auto"><CodeBlock code={String(logsPrevious.logs)} /></div>
+          </details>
+        </Section>
+      )}
+
+      {/* Events */}
+      {events && typeof events === "object" && Array.isArray((events as Record<string, unknown>).events) && (
+        <Section title={`Events (${((events as Record<string, unknown>).events as unknown[]).length})`}>
+          {renderEvents(events as Record<string, unknown>)}
+        </Section>
+      )}
+
+      {/* AI Analysis */}
       {r.ai && typeof r.ai === "object" && (() => {
         const aiObj = r.ai as Record<string, unknown>;
-        // ai_enabled=false means no API key configured
         if (!aiObj.ai_enabled) {
           return (
             <Section title="AI Analysis">
@@ -269,7 +373,6 @@ function renderInvestigate(r: Record<string, unknown>) {
             </Section>
           );
         }
-        // ai_analysis may be null if Gemini call failed
         const analysis = aiObj.ai_analysis as Record<string, unknown> | null;
         if (!analysis) {
           return (
@@ -497,13 +600,19 @@ function renderNamespaceResources(r: Record<string, unknown>) {
               <th className="pb-1 pr-4">Name</th><th className="pb-1 pr-4">Status</th><th className="pb-1">Restarts</th>
             </tr></thead>
             <tbody>{pods.map((p, i) => {
-              const status = String(p.status ?? "");
-              const isOk = status === "Running" && p.ready;
+              const status = String(p.status ?? p.phase ?? "");
+              const restarts = Number(p.restarts ?? p.restart_count ?? 0);
+              const color = statusColor(status);
+              const isBad = color === "var(--danger)";
               return (
-                <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}>
-                  <td className="py-1 pr-4 text-[11px] truncate max-w-[200px]"><ResourceName>{String(p.name ?? "")}</ResourceName></td>
-                  <td className="py-1 pr-4 font-semibold text-xs" style={{ color: isOk ? "var(--success)" : "var(--warning)" }}>{status}</td>
-                  <td className="py-1 text-xs" style={{ color: "var(--text-muted)" }}>{String(p.restarts ?? 0)}</td>
+                <tr key={i} style={{
+                  borderBottom: "1px solid var(--border)",
+                  borderLeft: isBad ? `2px solid ${color}` : "2px solid transparent",
+                  background: isBad ? "rgba(239,68,68,0.04)" : "transparent",
+                }}>
+                  <td className="py-1 pr-4 pl-1 text-[11px] truncate max-w-[200px]"><ResourceName>{String(p.name ?? "")}</ResourceName></td>
+                  <td className="py-1 pr-4 font-semibold text-xs" style={{ color }}>{status}</td>
+                  <td className="py-1 text-xs" style={{ color: restarts > 0 ? "var(--warning)" : "var(--text-muted)" }}>{restarts}</td>
                 </tr>
               );
             })}</tbody>
@@ -651,9 +760,16 @@ function renderFindWorkload(r: Record<string, unknown>) {
       )}
       {pods.length > 0 && (
         <Section title={`Pods (${pods.length})`}>
-          {pods.map((p, i) => (
-            <Row key={i} name={String(p.name ?? "")} ns={String(p.namespace ?? "")} extra={String(p.phase ?? "")} />
-          ))}
+          {pods.map((p, i) => {
+            const status = String(p.status ?? p.phase ?? "");
+            const color = statusColor(status);
+            return (
+              <Row key={i} name={String(p.name ?? "")} ns={String(p.namespace ?? "")}
+                extra={String(p.ready ?? "")}
+                badge={status !== "Running" ? status : undefined}
+              />
+            );
+          })}
         </Section>
       )}
       {services.length > 0 && (
@@ -697,6 +813,30 @@ function renderGeneric(r: Record<string, unknown>) {
 
 const ANALYZE_TOOLS = ["analyze_error", "get_fix_commands", "generate_runbook", "cluster_report", "error_summary"];
 
+const TOOL_LABELS: Record<string, string> = {
+  get_pods: "kubectl get pods",
+  get_pod_logs: "kubectl logs",
+  get_events: "kubectl get events",
+  get_deployment: "kubectl get deployment",
+  get_service: "kubectl get service",
+  get_endpoints: "kubectl get endpoints",
+  get_rollout_status: "kubectl rollout status",
+  get_namespaces: "kubectl get namespaces",
+  list_namespace_resources: "kubectl get all",
+  list_services: "kubectl get services",
+  get_resource_graph: "kubectl topology",
+  list_contexts: "kubectl config get-contexts",
+  find_workload: "kubectl search",
+  investigate_pod: "pod investigation",
+  investigate_workload: "workload investigation",
+  analyze_namespace: "namespace analysis",
+  analyze_error: "AI error analysis",
+  get_fix_commands: "fix playbook",
+  generate_runbook: "runbook generation",
+  cluster_report: "cluster health report",
+  error_summary: "error summary",
+};
+
 export default function ResultCard({ tool, result }: Props) {
   const [showRaw, setShowRaw] = useState(false);
 
@@ -716,14 +856,34 @@ export default function ResultCard({ tool, result }: Props) {
   else if (tool === "get_resource_graph")   body = <ResourceGraph data={result as Parameters<typeof ResourceGraph>[0]["data"]} />;
   else                                      body = renderGeneric(result);
 
+  const label = TOOL_LABELS[tool] ?? tool;
+  const ns = typeof result.namespace === "string" && result.namespace !== "*" ? result.namespace : "";
+
   return (
     <div
       className="rounded-xl p-4 text-sm"
       style={{ background: "var(--bg-surface-2)", border: "1px solid var(--border)" }}
     >
+      {/* Provenance tag */}
+      <div className="flex items-center gap-2 mb-3 pb-2" style={{ borderBottom: "1px solid var(--border)" }}>
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-mono px-2 py-0.5 rounded-md"
+          style={{ background: "var(--brand-dim)", color: "var(--brand)", border: "1px solid var(--brand-border)" }}
+        >
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
+            <path d="M2 4l6-2 6 2v5.5a5.5 5.5 0 01-6 5.5 5.5 5.5 0 01-6-5.5V4z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+          </svg>
+          {label}
+        </span>
+        {ns && (
+          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: "var(--bg-surface-3)", color: "var(--text-muted)", border: "1px solid var(--border)" }}>
+            ns: {ns}
+          </span>
+        )}
+      </div>
+
       {body}
-      <div className="mt-3 flex justify-between items-center" style={{ borderTop: "1px solid var(--border)", paddingTop: "0.5rem" }}>
-        <span className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>tool: {tool}</span>
+
+      <div className="mt-3 flex justify-end">
         <button
           onClick={() => setShowRaw(!showRaw)}
           className="text-xs underline transition"

@@ -125,10 +125,35 @@ def find_workload(
     for item in all_pods:
         item_name = item.get("metadata", {}).get("name", "")
         if name.lower() in item_name.lower():
+            pod_status = item.get("status", {})
+            container_statuses = pod_status.get("containerStatuses", [])
+            restarts = sum(cs.get("restartCount", 0) for cs in container_statuses)
+            ready_count = sum(1 for cs in container_statuses if cs.get("ready", False))
+            total_count = len(container_statuses) if container_statuses else 0
+            # Derive effective status (check container waiting reasons)
+            effective_status = pod_status.get("phase", "Unknown")
+            for cs in container_statuses:
+                waiting = cs.get("state", {}).get("waiting", {})
+                reason = waiting.get("reason", "")
+                if reason in ("CrashLoopBackOff", "ImagePullBackOff", "ErrImagePull",
+                              "CreateContainerConfigError", "OOMKilled"):
+                    effective_status = reason
+                    break
+                terminated = cs.get("state", {}).get("terminated", {})
+                t_reason = terminated.get("reason", "")
+                if t_reason in ("OOMKilled", "Error") and restarts > 0:
+                    effective_status = t_reason
+                    break
+            containers = item.get("spec", {}).get("containers", [])
             matches["pods"].append({
                 "namespace": item.get("metadata", {}).get("namespace", ""),
                 "name": item_name,
-                "phase": item.get("status", {}).get("phase", "Unknown"),
+                "phase": pod_status.get("phase", "Unknown"),
+                "status": effective_status,
+                "ready": f"{ready_count}/{total_count}",
+                "restarts": restarts,
+                "image": containers[0].get("image", "") if containers else "",
+                "node": item.get("spec", {}).get("nodeName", ""),
             })
 
     for item in all_services:
@@ -348,10 +373,41 @@ def get_pods(
     result = get_runner().run_json(args, namespace=None if all_namespaces else namespace)
     pods = parse_pod_list(result)
 
+    # Pre-compute health summary so the AI synthesis always sees problems
+    # even when the full pod list is too large for the LLM prompt window.
+    _UNHEALTHY_STATUSES = {
+        "CrashLoopBackOff", "Error", "OOMKilled", "ImagePullBackOff",
+        "ErrImagePull", "CreateContainerError", "RunContainerError",
+        "InvalidImageName", "ImageInspectError", "ErrImageNeverPull",
+    }
+    unhealthy = [p for p in pods if p.get("status") in _UNHEALTHY_STATUSES]
+    high_restart = [p for p in pods if p.get("restarts", 0) >= 5 and p not in unhealthy]
+
+    # Status breakdown
+    status_counts: dict = {}
+    for p in pods:
+        s = p.get("status", "Unknown")
+        status_counts[s] = status_counts.get(s, 0) + 1
+
+    health_summary = {
+        "total": len(pods),
+        "unhealthy_count": len(unhealthy),
+        "unhealthy_pods": [
+            {"name": p["name"], "status": p.get("status"), "restarts": p.get("restarts", 0)}
+            for p in unhealthy
+        ],
+        "high_restart_pods": [
+            {"name": p["name"], "status": p.get("status"), "restarts": p.get("restarts", 0)}
+            for p in high_restart
+        ],
+        "status_breakdown": status_counts,
+    }
+
     return {
         "namespace": "*" if all_namespaces else namespace,
         "label_selector": label_selector,
         "pod_count": len(pods),
+        "health_summary": health_summary,
         "pods": pods,
     }
 
@@ -659,7 +715,7 @@ def get_events(namespace: str, field_selector: Optional[str] = None) -> Dict[str
     if not all_namespaces:
         namespace = validate_namespace(namespace)
 
-    args = ["get", "events", "-o", "json", "--sort-by=.lastTimestamp"]
+    args = ["get", "events", "-o", "json"]
 
     if all_namespaces:
         args.append("--all-namespaces")

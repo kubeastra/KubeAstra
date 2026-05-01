@@ -1,60 +1,136 @@
 @import "tailwindcss";
 
-/* ── Brand tokens ─────────────────────────────────────────────────────────── */
+/* ── Astra Intent — Design Tokens ────────────────────────────────────────── */
 :root {
-  /* Primary — lime green accent */
-  --brand:        #8DC63F;
-  --brand-hover:  #9ED24F;
-  --brand-dim:    rgba(141, 198, 63, 0.10);
-  --brand-border: rgba(141, 198, 63, 0.25);
+  /* Primary — Astra teal */
+  --brand:        #22D3EE;
+  --brand-hover:  #38E8FF;
+  --brand-dim:    rgba(34, 211, 238, 0.10);
+  --brand-border: rgba(34, 211, 238, 0.25);
 
-  /* Backgrounds — deep black */
-  --bg-base:      #09090B;
-  --bg-surface:   #111113;
-  --bg-surface-2: #18181B;
-  --bg-surface-3: #1F1F23;
+  /* Secondary — blue accent */
+  --brand-alt:    #4F8EF7;
+  --brand-alt-dim: rgba(79, 142, 247, 0.12);
+  --brand-alt-border: rgba(79, 142, 247, 0.20);
+
+  /* Copper — action / execute accent */
+  --copper:       #C8733A;
+  --copper-dim:   rgba(200, 115, 58, 0.15);
+  --copper-border: rgba(200, 115, 58, 0.40);
+
+  /* Backgrounds — deep space */
+  --bg-base:      #07091A;
+  --bg-surface:   #0A0D14;
+  --bg-surface-2: #0F1520;
+  --bg-surface-3: #1A2535;
 
   /* Borders */
-  --border:       #27272A;
-  --border-hover: #3F3F46;
+  --border:       #1A2535;
+  --border-hover: #2A3A50;
 
   /* Text */
-  --text-primary:   #FAFAFA;
-  --text-secondary: #A1A1AA;
-  --text-muted:     #52525B;
+  --text-primary:   #E2E8F0;
+  --text-secondary: #94A3B8;
+  --text-muted:     #475569;
+  --text-dim:       #2A3A50;
 
   /* Semantic */
-  --success: #22C55E;
-  --warning: #F59E0B;
+  --success: #34D399;
+  --warning: #FBBF24;
   --danger:  #EF4444;
+  --purple:  #A78BFA;
+
+  /* Category chip accent colors */
+  --chip-error:     #EF4444;
+  --chip-workload:  #34D399;
+  --chip-namespace: #4F8EF7;
+  --chip-events:    #FBBF24;
+  --chip-cluster:   #A78BFA;
+  --chip-docs:      #22D3EE;
+
+  /* Font stacks */
+  --sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --mono: 'Fira Code', 'JetBrains Mono', ui-monospace, monospace;
 
   --background: var(--bg-base);
   --foreground: var(--text-primary);
 }
 
-/* ── Force dark background — Tailwind preflight must not override ── */
-html,
-body {
-  background-color: #09090B !important;
-  color: #FAFAFA;
+/* ── Force dark background ───────────────────────────────────────────────── */
+html, body {
+  background-color: var(--bg-base) !important;
+  color: var(--text-primary);
   min-height: 100%;
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
 }
 
-/* ── Thin, elegant scrollbar ──────────────────────────────────────────────── */
+/* ── Thin scrollbar ──────────────────────────────────────────────────────── */
 ::-webkit-scrollbar       { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+::-webkit-scrollbar-thumb { background: #1E2D40; border-radius: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
 
-/* ── Utility classes ──────────────────────────────────────────────────────── */
+/* ── CRT scanline overlay ────────────────────────────────────────────────── */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg, transparent, transparent 2px,
+    rgba(0,0,0,0.025) 2px, rgba(0,0,0,0.025) 4px
+  );
+}
+
+/* ── Keyframe Animations ─────────────────────────────────────────────────── */
+
+/* Spring-entry — used by all artifacts */
+@keyframes artifactSlideIn {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes overlayFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes pulseRing {
+  0%   { transform: scale(0.8); opacity: 0.7; }
+  70%  { transform: scale(1.6); opacity: 0; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.25; }
+}
+
+@keyframes dotBounce {
+  0%, 80%, 100% { transform: translateY(0);    opacity: 0.35; }
+  40%           { transform: translateY(-5px); opacity: 1; }
+}
+
+@keyframes logo-pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+.logo-core-pulse { animation: logo-pulse 3s ease-in-out infinite; }
+
+/* ── Utility classes ─────────────────────────────────────────────────────── */
 
 .app-btn-primary {
   background: var(--brand);
-  color: #0a0a0a;
+  color: var(--bg-base);
   font-weight: 600;
-  transition: background 0.15s;
+  transition: background 0.15s, box-shadow 0.15s;
 }
-.app-btn-primary:hover:not(:disabled) { background: var(--brand-hover); }
+.app-btn-primary:hover:not(:disabled) {
+  background: var(--brand-hover);
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.35);
+}
 .app-btn-primary:disabled { background: var(--bg-surface-3); color: var(--text-muted); }
 
 .app-btn-ghost {
@@ -70,5 +146,35 @@ body {
   color: var(--text-primary);
   transition: border-color 0.15s;
 }
-.app-input::placeholder { color: var(--text-muted); }
+.app-input::placeholder { color: var(--text-dim); }
 .app-input:focus { outline: none; border-color: var(--brand); }
+
+input::placeholder { color: var(--text-dim); }
+button { font-family: var(--sans); }
+
+/* ── Prompt chip category styles ─────────────────────────────────────────── */
+.chip-base {
+  position: relative;
+  text-align: left;
+  border-radius: 10px;
+  padding: 10px 14px 10px 16px;
+  border: 1px solid var(--border);
+  background: var(--bg-surface-2);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  overflow: hidden;
+}
+.chip-base::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  border-radius: 10px 0 0 10px;
+  background: var(--chip-accent);
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+.chip-base:hover { color: var(--text-primary); background: var(--bg-surface-3); }
+.chip-base:hover::before { opacity: 1; }

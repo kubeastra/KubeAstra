@@ -62,13 +62,50 @@ def parse_pod_list(json_output: dict) -> List[Dict[str, Any]]:
                 
                 container_states.append(state_info)
             
+            # Determine effective status by checking container waiting reasons
+            # This prevents showing "Running" for pods stuck in CrashLoopBackOff
+            effective_status = status.get("phase", "Unknown")
+            status_reason = ""
+            for cs in container_statuses:
+                waiting = cs.get("state", {}).get("waiting", {})
+                reason = waiting.get("reason", "")
+                if reason in ("CrashLoopBackOff", "ImagePullBackOff", "ErrImagePull",
+                              "CreateContainerConfigError", "InvalidImageName",
+                              "RunContainerError"):
+                    effective_status = reason
+                    status_reason = waiting.get("message", "")
+                    break
+                terminated = cs.get("state", {}).get("terminated", {})
+                t_reason = terminated.get("reason", "")
+                if t_reason in ("OOMKilled", "Error") and restart_count > 0:
+                    effective_status = t_reason
+                    status_reason = f"exit code {terminated.get('exitCode', '')}"
+                    break
+            # Check init containers too
+            for cs in status.get("initContainerStatuses", []) or []:
+                waiting = cs.get("state", {}).get("waiting", {})
+                reason = waiting.get("reason", "")
+                if reason:
+                    effective_status = f"Init:{reason}"
+                    status_reason = waiting.get("message", "")
+                    break
+
+            # Extract container images
+            containers = spec.get("containers", [])
+            images = [c.get("image", "") for c in containers]
+
             pod_summary = {
                 "name": metadata.get("name", ""),
                 "namespace": metadata.get("namespace", ""),
                 "phase": status.get("phase", "Unknown"),
+                "status": effective_status,
+                "status_reason": status_reason,
                 "ready": f"{ready_count}/{total_count}",
+                "restarts": restart_count,
                 "restart_count": restart_count,
                 "node_name": spec.get("nodeName", ""),
+                "image": images[0] if images else "",
+                "images": images,
                 "pod_ip": status.get("podIP", ""),
                 "creation_timestamp": metadata.get("creationTimestamp", ""),
                 "labels": metadata.get("labels", {}),
@@ -309,19 +346,23 @@ def parse_events(json_output: dict) -> List[Dict[str, Any]]:
             if len(message) > 500:
                 message = message[:500] + "... [truncated]"
             
+            # Resolve timestamp — newer K8s uses eventTime, older uses lastTimestamp
+            last_ts = item.get("lastTimestamp") or item.get("eventTime") or metadata.get("creationTimestamp") or ""
+            first_ts = item.get("firstTimestamp") or item.get("eventTime") or metadata.get("creationTimestamp") or ""
+            
             event_summary = {
                 "type": item.get("type", "Normal"),
                 "reason": item.get("reason", ""),
                 "message": message,
                 "count": item.get("count", 1),
-                "first_timestamp": item.get("firstTimestamp", ""),
-                "last_timestamp": item.get("lastTimestamp", ""),
+                "first_timestamp": first_ts,
+                "last_timestamp": last_ts,
                 "involved_object": {
                     "kind": item.get("involvedObject", {}).get("kind", ""),
                     "name": item.get("involvedObject", {}).get("name", ""),
                     "namespace": item.get("involvedObject", {}).get("namespace", ""),
                 },
-                "source": item.get("source", {}).get("component", ""),
+                "source": item.get("source", {}).get("component", "") if isinstance(item.get("source"), dict) else item.get("reportingComponent", ""),
             }
             
             events.append(event_summary)
@@ -331,9 +372,9 @@ def parse_events(json_output: dict) -> List[Dict[str, Any]]:
             logging.getLogger(__name__).warning(f"Failed to parse event item: {e}")
             continue
     
-    # Sort by last timestamp (most recent first)
+    # Sort by last timestamp (most recent first) — guard against None values
     events.sort(
-        key=lambda e: e.get("last_timestamp", ""),
+        key=lambda e: e.get("last_timestamp") or "",
         reverse=True
     )
     

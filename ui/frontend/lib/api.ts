@@ -69,6 +69,14 @@ export interface ChatResponse {
   tool_used: string;
   result: Record<string, unknown> | null;
   error?: string | null;
+  timestamp?: number;
+  suggested_actions?: Array<{ label: string; command: string; confirm?: boolean }>;
+}
+
+export interface ExecuteResponse {
+  success: boolean;
+  output: string;
+  error: string;
 }
 
 // ── Chat ──────────────────────────────────────────────────────────────────────
@@ -158,6 +166,23 @@ export async function checkHealth() {
   } catch {
     return null;
   }
+}
+
+// ── Execute (approval gate) ──────────────────────────────────────────────────
+
+export async function executeCommand(
+  command: string,
+  ssh?: SSHCredentials | null
+): Promise<ExecuteResponse> {
+  const body: Record<string, unknown> = { command };
+  if (ssh) body.ssh = ssh;
+  const res = await fetch(apiUrl("/api/execute"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
 }
 
 // ── Legacy form dashboard client ─────────────────────────────────────────────

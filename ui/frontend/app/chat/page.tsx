@@ -1,7 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
 import ResultCard from "../../components/ResultCard";
+import UserMessage from "../../components/astra/UserMessage";
+import AstraMessage from "../../components/astra/AstraMessage";
+import ReasoningBubble, { type ToolStep } from "../../components/astra/ReasoningBubble";
+import RootCauseCard from "../../components/astra/RootCauseCard";
+import IntentBar from "../../components/astra/IntentBar";
+import ApprovalOverlay from "../../components/astra/ApprovalOverlay";
 import {
   sendChat,
   checkHealth,
@@ -10,6 +17,7 @@ import {
   getSshTarget,
   saveSshTarget,
   deleteSshTarget,
+  executeCommand,
   type ChatMessage,
   type SSHCredentials,
   type SSHTarget,
@@ -27,23 +35,13 @@ interface Message {
   error?: string | null;
   loading?: boolean;
   viaSSH?: boolean;
+  suggestedActions?: Array<{ label: string; command: string; confirm?: boolean }>;
 }
 
 interface Health {
   ai_enabled: boolean;
   kubectl_available: boolean;
 }
-
-/* ── example prompts ─────────────────────────────────────────── */
-
-const EXAMPLES = [
-  "My pod is stuck in CrashLoopBackOff — paste the error here",
-  "List all pods in the production namespace",
-  "Investigate pod api-service-7d4f9b in namespace default",
-  "Show me recent events in the staging namespace",
-  "What clusters do I have configured?",
-  "Generate a runbook for OOMKilled errors",
-];
 
 /* ── helpers ─────────────────────────────────────────────────── */
 
@@ -72,108 +70,70 @@ function historyToMessages(history: HistoryMessage[]): Message[] {
   }));
 }
 
-/* ── App logo components ─────────────────────────────────────── */
-
-/** Circular "K" emblem for the app header */
-function AppEmblem({ size = 32 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Green circle */}
-      <circle cx="22" cy="22" r="22" fill="var(--brand)" />
-      {/* Stylised S path in dark/black */}
-      <path
-        d="M30 15H19a4 4 0 0 0 0 8h6a4 4 0 0 1 0 8H14"
-        stroke="#0a0a0a"
-        strokeWidth="3.5"
-        strokeLinecap="round"
-        fill="none"
-      />
-    </svg>
-  );
+function formatTime(): string {
+  const d = new Date();
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
-/** App wordmark: emblem + "K8s" + "Ops" in brand color */
-function AppWordmark() {
-  return (
-    <div className="flex items-center gap-2.5">
-      <AppEmblem size={30} />
-      <span className="text-lg font-bold tracking-tight leading-none select-none" style={{ letterSpacing: "-0.02em" }}>
-        <span style={{ color: "var(--text-primary)" }}>K8s</span>
-        <span style={{ color: "var(--brand)" }}>Ops</span>
-      </span>
-    </div>
-  );
+/** Map tool_used to reasoning steps */
+function toolToSteps(tool: string, result: Record<string, unknown> | null): ToolStep[] {
+  const steps: ToolStep[] = [];
+  if (tool === "investigate_pod" || tool === "investigate_workload") {
+    steps.push({ tool: "kubectl", status: "done", result: "pod status retrieved" });
+    if (result?.logs || result?.current_logs) steps.push({ tool: "logs", status: "done", result: "log tail captured" });
+    if (result?.events) steps.push({ tool: "events", status: "done", result: "events scanned" });
+    if (result?.describe_highlights) steps.push({ tool: "describe", status: "done", result: "highlights extracted" });
+    steps.push({ tool: "ai", status: "done", result: "analysis complete" });
+  } else if (tool === "get_pods") {
+    steps.push({ tool: "kubectl", status: "done", result: "pods listed" });
+  } else if (tool === "get_events") {
+    steps.push({ tool: "events", status: "done", result: "events fetched" });
+  } else if (tool === "get_pod_logs") {
+    steps.push({ tool: "logs", status: "done", result: "logs retrieved" });
+  } else if (tool === "analyze_error") {
+    steps.push({ tool: "ai", status: "done", result: "error analyzed" });
+  } else if (tool) {
+    steps.push({ tool: tool, status: "done" });
+  }
+  return steps;
 }
 
-/* ── SSH reconnect banner ────────────────────────────────────── */
+/** Extract root-cause data from investigation results */
+function extractRootCause(result: Record<string, unknown>) {
+  const classification = (result.classification as string) || "";
+  const severity = classification.toLowerCase().includes("critical") ? "critical" as const
+    : classification.toLowerCase().includes("warn") ? "warning" as const
+    : "info" as const;
 
-interface ReconnectBannerProps {
-  target: SSHTarget;
-  onReconnect: (password: string) => void;
-  onDismiss: () => void;
+  const highlights = (result.describe_highlights || {}) as Record<string, unknown>;
+  const metrics = [];
+  if (highlights.restart_count !== undefined) {
+    metrics.push({ label: "Restarts", value: String(highlights.restart_count), color: Number(highlights.restart_count) > 0 ? "#EF4444" : "#64748B" });
+  }
+  const status = String(result.effective_status || result.status || highlights.state || "");
+  if (status) metrics.push({ label: "Status", value: status, color: status.includes("Crash") || status.includes("OOM") ? "#EF4444" : "#34D399" });
+  const ready = String(highlights.ready || "");
+  if (ready) metrics.push({ label: "Ready", value: ready, color: ready === "True" ? "#34D399" : "#EF4444" });
+
+  // Build evidence string
+  const evidenceLines: string[] = [];
+  if (result.current_logs) evidenceLines.push("# Current Logs", String(result.current_logs).slice(0, 500));
+  if (result.previous_logs) evidenceLines.push("", "# Previous Logs", String(result.previous_logs).slice(0, 300));
+
+  const pod = String(result.pod_name || result.pod || result.name || "");
+  const ns = String(result.namespace || "");
+  const summary = String(result.ai_analysis || result.analysis || classification || "");
+
+  return { severity, pod, namespace: ns, summary, metrics, evidence: evidenceLines.join("\n"), title: classification || "Investigation Result" };
 }
 
-function ReconnectBanner({ target, onReconnect, onDismiss }: ReconnectBannerProps) {
-  const [password, setPassword] = useState("");
-  const [busy, setBusy] = useState(false);
+/* ── SSH Panel (collapsible drawer) ──────────────────────────── */
 
-  const handleReconnect = async () => {
-    if (!password) return;
-    setBusy(true);
-    onReconnect(password);
-  };
-
-  return (
-    <div
-      className="shrink-0 border-b px-4 py-3"
-      style={{ background: "var(--brand-dim)", borderColor: "var(--brand-border)" }}
-    >
-      <div className="max-w-3xl mx-auto flex items-center gap-3 flex-wrap">
-        <div className="flex items-center gap-2 text-sm flex-1 min-w-0" style={{ color: "var(--brand)" }}>
-          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: "var(--brand)" }} />
-          <span className="truncate">
-            Previous SSH session:{" "}
-            <span className="font-mono font-medium">{target.username}@{target.host}</span>
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleReconnect()}
-            placeholder="Password to reconnect"
-            autoFocus
-            className="app-input rounded-lg px-3 py-1.5 text-sm w-44"
-          />
-          <button
-            onClick={handleReconnect}
-            disabled={!password || busy}
-            className="app-btn-primary px-3 py-1.5 rounded-lg text-sm font-medium"
-          >
-            {busy ? "Connecting…" : "Reconnect"}
-          </button>
-          <button
-            onClick={onDismiss}
-            className="app-btn-ghost px-3 py-1.5 rounded-lg text-sm"
-          >
-            Dismiss
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ── SSH panel ───────────────────────────────────────────────── */
-
-interface SSHPanelProps {
+function SSHDrawer({ onConnect, onDisconnect, connected }: {
   onConnect: (creds: SSHCredentials) => void;
   onDisconnect: () => void;
   connected: SSHCredentials | null;
-}
-
-function SSHPanel({ onConnect, onDisconnect, connected }: SSHPanelProps) {
+}) {
   const [open, setOpen] = useState(false);
   const [host, setHost] = useState("");
   const [username, setUsername] = useState("");
@@ -184,52 +144,31 @@ function SSHPanel({ onConnect, onDisconnect, connected }: SSHPanelProps) {
 
   const handleConnect = async () => {
     if (!host.trim() || !username.trim() || !password) return;
-    const creds: SSHCredentials = {
-      host: host.trim(),
-      username: username.trim(),
-      password,
-      port: parseInt(port, 10) || 22,
-    };
-
+    const creds: SSHCredentials = { host: host.trim(), username: username.trim(), password, port: parseInt(port, 10) || 22 };
     setTestStatus("testing");
     setTestError("");
     try {
       const res = await sendChat("list clusters", [], creds);
-      if (res.error && res.tool_used === "error") {
-        setTestStatus("err");
-        setTestError(res.error);
-        return;
-      }
+      if (res.error && res.tool_used === "error") { setTestStatus("err"); setTestError(res.error); return; }
       setTestStatus("ok");
       onConnect(creds);
       setOpen(false);
-    } catch (e) {
-      setTestStatus("err");
-      setTestError(String(e));
-    }
-  };
-
-  const handleDisconnect = () => {
-    onDisconnect();
-    setTestStatus("idle");
-    setTestError("");
-    setPassword("");
+    } catch (e) { setTestStatus("err"); setTestError(String(e)); }
   };
 
   if (connected) {
     return (
-      <div className="flex items-center gap-2 text-xs">
-        <span
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium"
-          style={{ background: "var(--brand-dim)", borderColor: "var(--brand-border)", color: "var(--brand)" }}
-        >
-          <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "var(--brand)" }} />
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{
+          fontSize: 10, fontFamily: "var(--mono)", fontWeight: 600, color: "#22D3EE",
+          background: "rgba(34,211,238,0.1)", border: "1px solid rgba(34,211,238,0.2)",
+          borderRadius: 4, padding: "3px 7px", display: "flex", alignItems: "center", gap: 4,
+        }}>
+          <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#22D3EE", animation: "blink 2s infinite" }}/>
           SSH: {connected.username}@{connected.host}
         </span>
-        <button
-          onClick={handleDisconnect}
-          className="app-btn-ghost px-2.5 py-1 rounded-lg text-xs hover:!text-red-400 hover:!border-red-700/50"
-        >
+        <button onClick={() => { onDisconnect(); setTestStatus("idle"); setPassword(""); }}
+          style={{ fontSize: 10, color: "#475569", background: "none", border: "1px solid #1A2535", borderRadius: 4, padding: "3px 7px", cursor: "pointer" }}>
           Disconnect
         </button>
       </div>
@@ -237,84 +176,34 @@ function SSHPanel({ onConnect, onDisconnect, connected }: SSHPanelProps) {
   }
 
   return (
-    <div className="relative">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="app-btn-ghost flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <rect x="2" y="2" width="20" height="8" rx="2" />
-          <rect x="2" y="14" width="20" height="8" rx="2" />
-          <line x1="6" y1="6" x2="6.01" y2="6" />
-          <line x1="6" y1="18" x2="6.01" y2="18" />
-        </svg>
+    <div style={{ position: "relative" }}>
+      <button onClick={() => setOpen(v => !v)}
+        style={{ fontSize: 10, color: "#475569", background: "none", border: "1px solid #1A2535", borderRadius: 4, padding: "3px 7px", cursor: "pointer", fontFamily: "var(--mono)" }}>
         SSH Cluster
       </button>
-
       {open && (
-        <div
-          className="absolute right-0 top-9 z-50 w-80 rounded-2xl shadow-2xl p-4 flex flex-col gap-3"
-          style={{ background: "var(--bg-surface-2)", border: "1px solid var(--border)" }}
-        >
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-              Connect to Remote Cluster
-            </h3>
-            <button
-              onClick={() => setOpen(false)}
-              className="text-lg leading-none transition"
-              style={{ color: "var(--text-muted)" }}
-            >
-              &times;
-            </button>
+        <div style={{
+          position: "absolute", right: 0, top: 32, zIndex: 50, width: 300, padding: 14,
+          background: "#0C1220", border: "1px solid rgba(34,211,238,0.2)", borderRadius: 10,
+          boxShadow: "0 16px 48px rgba(0,0,0,0.5)", display: "flex", flexDirection: "column", gap: 8,
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "#E2E8F0" }}>Connect to Remote Cluster</span>
+            <button onClick={() => setOpen(false)} style={{ background: "none", border: "none", color: "#475569", cursor: "pointer", fontSize: 16 }}>&times;</button>
           </div>
-
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-            SSH into a kubeadm master node. All kubectl commands will run remotely for this session.
-          </p>
-
-          <div className="flex gap-2">
-            <div className="flex-1 flex flex-col gap-1">
-              <label className="text-xs" style={{ color: "var(--text-muted)" }}>Hostname / IP</label>
-              <input type="text" value={host} onChange={(e) => setHost(e.target.value)}
-                placeholder="10.0.1.5" className="app-input rounded-lg px-3 py-1.5 text-sm w-full" />
-            </div>
-            <div className="w-16 flex flex-col gap-1">
-              <label className="text-xs" style={{ color: "var(--text-muted)" }}>Port</label>
-              <input type="number" value={port} onChange={(e) => setPort(e.target.value)}
-                className="app-input rounded-lg px-3 py-1.5 text-sm w-full" />
-            </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <input value={host} onChange={e => setHost(e.target.value)} placeholder="10.0.1.5"
+              style={{ flex: 1, background: "#080D14", border: "1px solid #1A2535", borderRadius: 6, padding: "6px 10px", color: "#E2E8F0", fontSize: 12, outline: "none" }}/>
+            <input value={port} onChange={e => setPort(e.target.value)} style={{ width: 50, background: "#080D14", border: "1px solid #1A2535", borderRadius: 6, padding: "6px 10px", color: "#E2E8F0", fontSize: 12, outline: "none" }}/>
           </div>
-
-          <div className="flex flex-col gap-1">
-            <label className="text-xs" style={{ color: "var(--text-muted)" }}>Username</label>
-            <input type="text" value={username} onChange={(e) => setUsername(e.target.value)}
-              placeholder="ubuntu" className="app-input rounded-lg px-3 py-1.5 text-sm w-full" />
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <label className="text-xs" style={{ color: "var(--text-muted)" }}>Password</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••" className="app-input rounded-lg px-3 py-1.5 text-sm w-full" />
-          </div>
-
-          {testStatus === "err" && (
-            <p className="text-xs rounded-lg px-3 py-2" style={{ color: "var(--danger)", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
-              {testError || "Connection failed"}
-            </p>
-          )}
-
-          <button
-            onClick={handleConnect}
-            disabled={!host.trim() || !username.trim() || !password || testStatus === "testing"}
-            className="app-btn-primary mt-1 w-full py-2 rounded-xl text-sm font-medium flex items-center justify-center gap-2"
-          >
-            {testStatus === "testing" ? (
-              <>
-                <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Testing connection…
-              </>
-            ) : "Connect & Test"}
+          <input value={username} onChange={e => setUsername(e.target.value)} placeholder="ubuntu"
+            style={{ background: "#080D14", border: "1px solid #1A2535", borderRadius: 6, padding: "6px 10px", color: "#E2E8F0", fontSize: 12, outline: "none" }}/>
+          <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••"
+            style={{ background: "#080D14", border: "1px solid #1A2535", borderRadius: 6, padding: "6px 10px", color: "#E2E8F0", fontSize: 12, outline: "none" }}/>
+          {testStatus === "err" && <div style={{ fontSize: 10, color: "#EF4444", padding: "4px 8px", background: "rgba(239,68,68,0.08)", borderRadius: 4 }}>{testError}</div>}
+          <button onClick={handleConnect} disabled={!host.trim() || !username.trim() || !password || testStatus === "testing"}
+            style={{ padding: "8px", background: "rgba(34,211,238,0.15)", border: "1px solid rgba(34,211,238,0.3)", borderRadius: 6, color: "#22D3EE", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+            {testStatus === "testing" ? "Testing…" : "Connect & Test"}
           </button>
         </div>
       )}
@@ -327,501 +216,292 @@ function SSHPanel({ onConnect, onDisconnect, connected }: SSHPanelProps) {
 export default function ChatPage() {
   const [sessionId] = useState<string>(() => getOrCreateSessionId());
   const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [health, setHealth] = useState<Health | null>(null);
   const [healthLoaded, setHealthLoaded] = useState(false);
   const [sshCreds, setSshCreds] = useState<SSHCredentials | null>(null);
   const [pendingReconnect, setPendingReconnect] = useState<SSHTarget | null>(null);
   const [historyLoaded, setHistoryLoaded] = useState(false);
-  // edit state
-  const [editingIdx, setEditingIdx] = useState<number | null>(null);
-  const [editText, setEditText] = useState("");
-  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const [showOverlay, setShowOverlay] = useState(false);
+  const [overlayActions, setOverlayActions] = useState<Array<{ label: string; command: string }>>([]);
+  const [overlayResource, setOverlayResource] = useState("");
+  const [overlayNamespace, setOverlayNamespace] = useState("");
+  // reasoning animation
+  const [reasoningSteps, setReasoningSteps] = useState<ToolStep[]>([]);
+  const [isThinking, setIsThinking] = useState(false);
+
   const bottomRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    checkHealth().then((h) => {
-      if (h) setHealth(h as Health);
-      setHealthLoaded(true);
-    });
-    getHistory(sessionId).then((history) => {
-      if (history.length > 0) setMessages(historyToMessages(history));
-      setHistoryLoaded(true);
-    });
-    getSshTarget(sessionId).then((target) => {
-      if (target) setPendingReconnect(target);
-    });
+    checkHealth().then((h) => { if (h) setHealth(h as Health); setHealthLoaded(true); });
+    getHistory(sessionId).then((history) => { if (history.length > 0) setMessages(historyToMessages(history)); setHistoryLoaded(true); });
+    getSshTarget(sessionId).then((target) => { if (target) setPendingReconnect(target); });
   }, [sessionId]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  const autoResize = () => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = Math.min(el.scrollHeight, 200) + "px";
-  };
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, reasoningSteps]);
 
   const handleConnect = useCallback((creds: SSHCredentials) => {
     setSshCreds(creds);
     setPendingReconnect(null);
     saveSshTarget(sessionId, { host: creds.host, username: creds.username, port: creds.port ?? 22 });
-    setMessages((prev) => [
-      ...prev,
-      { id: uid(), role: "assistant", text: `Connected to **${creds.username}@${creds.host}** via SSH. All kubectl commands will now run on that cluster.` },
-    ]);
+    setMessages(prev => [...prev, { id: uid(), role: "assistant", text: `Connected to **${creds.username}@${creds.host}** via SSH.` }]);
   }, [sessionId]);
 
   const handleDisconnect = useCallback(() => {
     setSshCreds(null);
     deleteSshTarget(sessionId);
-    setMessages((prev) => [
-      ...prev,
-      { id: uid(), role: "assistant", text: "SSH session closed. Reverting to local cluster." },
-    ]);
+    setMessages(prev => [...prev, { id: uid(), role: "assistant", text: "SSH session closed. Reverting to local cluster." }]);
   }, [sessionId]);
 
-  const handleReconnectFromBanner = useCallback(async (password: string) => {
+  const handleReconnect = useCallback(async (password: string) => {
     if (!pendingReconnect) return;
     const creds: SSHCredentials = { ...pendingReconnect, password };
     try {
       const res = await sendChat("list clusters", [], creds, sessionId);
-      if (res.error && res.tool_used === "error") {
-        deleteSshTarget(sessionId);
-        setPendingReconnect(null);
-        return;
-      }
-      setSshCreds(creds);
-      setPendingReconnect(null);
-      setMessages((prev) => [
-        ...prev,
-        { id: uid(), role: "assistant", text: `Reconnected to **${creds.username}@${creds.host}** via SSH.` },
-      ]);
-    } catch {
-      deleteSshTarget(sessionId);
-      setPendingReconnect(null);
-    }
+      if (res.error && res.tool_used === "error") { deleteSshTarget(sessionId); setPendingReconnect(null); return; }
+      setSshCreds(creds); setPendingReconnect(null);
+      setMessages(prev => [...prev, { id: uid(), role: "assistant", text: `Reconnected to **${creds.username}@${creds.host}** via SSH.` }]);
+    } catch { deleteSshTarget(sessionId); setPendingReconnect(null); }
   }, [pendingReconnect, sessionId]);
 
   const submit = useCallback(async (text: string) => {
     if (!text.trim() || loading) return;
-
     const userMsg: Message = { id: uid(), role: "user", text: text.trim(), viaSSH: !!sshCreds };
     const thinkingMsg: Message = { id: uid(), role: "assistant", text: "", loading: true };
-
-    setMessages((prev) => [...prev, userMsg, thinkingMsg]);
-    setInput("");
+    setMessages(prev => [...prev, userMsg, thinkingMsg]);
     setLoading(true);
-    if (textareaRef.current) textareaRef.current.style.height = "auto";
+    setIsThinking(true);
 
-    const history: ChatMessage[] = messages
-      .filter((m) => !m.loading)
-      .slice(-10)
-      .map((m) => ({ role: m.role, content: m.text }));
+    // Simulate reasoning animation while waiting
+    setReasoningSteps([{ tool: "kubectl", status: "running" }]);
+    const simTimers: ReturnType<typeof setTimeout>[] = [];
+    const simTools = ["kubectl", "logs", "events", "ai"];
+    simTools.forEach((t, i) => {
+      simTimers.push(setTimeout(() => {
+        setReasoningSteps(prev => {
+          const next = [...prev];
+          if (next[i]) next[i] = { ...next[i], status: "done" };
+          if (i + 1 < simTools.length) next[i + 1] = { tool: simTools[i + 1], status: "running" };
+          return next;
+        });
+      }, 800 + i * 700));
+    });
 
+    const history: ChatMessage[] = messages.filter(m => !m.loading).slice(-10).map(m => ({ role: m.role, content: m.text }));
     try {
       const res = await sendChat(text.trim(), history, sshCreds, sessionId);
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === thinkingMsg.id
-            ? { ...m, loading: false, text: res.reply, tool: res.tool_used, result: res.result, error: res.error }
-            : m
-        )
-      );
+      simTimers.forEach(clearTimeout);
+      // Build final reasoning steps from actual result
+      const finalSteps = toolToSteps(res.tool_used, res.result);
+      setReasoningSteps(finalSteps);
+      setIsThinking(false);
+      setMessages(prev => prev.map(m =>
+        m.id === thinkingMsg.id
+          ? { ...m, loading: false, text: res.reply, tool: res.tool_used, result: res.result, error: res.error, suggestedActions: res.suggested_actions }
+          : m
+      ));
     } catch (err) {
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === thinkingMsg.id
-            ? { ...m, loading: false, text: "Failed to reach the backend. Is it running?", error: String(err) }
-            : m
-        )
-      );
-    } finally {
-      setLoading(false);
-    }
+      simTimers.forEach(clearTimeout);
+      setReasoningSteps([]);
+      setIsThinking(false);
+      setMessages(prev => prev.map(m =>
+        m.id === thinkingMsg.id
+          ? { ...m, loading: false, text: "Failed to reach the backend. Is it running?", error: String(err) }
+          : m
+      ));
+    } finally { setLoading(false); }
   }, [loading, messages, sshCreds, sessionId]);
-
-  const handleCopy = useCallback((text: string, idx: number) => {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopiedIdx(idx);
-      setTimeout(() => setCopiedIdx(null), 1500);
-    });
-  }, []);
-
-  const handleEditStart = useCallback((idx: number, text: string) => {
-    setEditingIdx(idx);
-    setEditText(text);
-  }, []);
-
-  const handleEditCancel = useCallback(() => {
-    setEditingIdx(null);
-    setEditText("");
-  }, []);
-
-  const handleEditSubmit = useCallback(async (idx: number) => {
-    const text = editText.trim();
-    if (!text || loading) return;
-    // Remove the original message and everything after it, then re-run
-    setMessages((prev) => prev.slice(0, idx));
-    setEditingIdx(null);
-    setEditText("");
-    await submit(text);
-  }, [editText, loading, submit]);
 
   const handleNewChat = useCallback(() => {
     setMessages([]);
+    setReasoningSteps([]);
     clearHistory(sessionId);
   }, [sessionId]);
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      submit(input);
-    }
-  };
+  const handleReviewExecute = useCallback((actions: Array<{ label: string; command: string }>, resource: string, ns: string) => {
+    setOverlayActions(actions);
+    setOverlayResource(resource);
+    setOverlayNamespace(ns);
+    setShowOverlay(true);
+  }, []);
 
+  const handleExecuteConfirm = useCallback(async () => {
+    for (const action of overlayActions) {
+      try {
+        const res = await executeCommand(action.command, sshCreds);
+        setMessages(prev => [...prev, {
+          id: uid(), role: "assistant",
+          text: res.success ? `✓ Executed: \`${action.command}\`\n\n${res.output}` : `✗ Failed: ${res.error}`,
+        }]);
+      } catch (e) {
+        setMessages(prev => [...prev, { id: uid(), role: "assistant", text: `✗ Execution error: ${e}` }]);
+      }
+    }
+  }, [overlayActions, sshCreds]);
+
+  const clusterName = sshCreds ? `${sshCreds.host}` : health?.kubectl_available ? "LOCAL" : "NO CLUSTER";
   const isEmpty = historyLoaded && messages.length === 0;
+  const isInvestigation = (tool?: string) => tool === "investigate_pod" || tool === "investigate_workload";
 
   return (
-    <div className="flex flex-col h-screen" style={{ background: "var(--bg-base)", color: "var(--text-primary)" }}>
+    <div style={{ width: "100vw", height: "100vh", background: "var(--bg-base)", display: "flex", flexDirection: "column", overflow: "hidden", position: "relative" }}>
 
-      {/* ── header ── */}
-      <header
-        className="shrink-0 px-6 py-4 flex items-center justify-between"
-        style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-surface)" }}
-      >
-        {/* Left: app wordmark + product label */}
-        <div className="flex items-center gap-4">
-          <AppWordmark />
-          {/* Divider */}
-          <span className="w-px h-6 shrink-0" style={{ background: "var(--border)" }} />
-          <div>
-            <p className="text-xs font-medium leading-none" style={{ color: "var(--text-secondary)" }}>
-              Kubeastra
-            </p>
-            <p className="text-[10px] mt-0.5 leading-none" style={{ color: "var(--text-muted)" }}>
-              Paste an error or ask a question
-            </p>
+      {/* ── Top bar ── */}
+      <div style={{
+        height: 48, flexShrink: 0, background: "var(--bg-surface)", borderBottom: "1px solid var(--border)",
+        display: "flex", alignItems: "center", padding: "0 18px", gap: 12,
+      }}>
+        <svg viewBox="0 0 20 20" width="18" height="18">
+          <polygon points="10,0.5 18.7,5.25 18.7,14.75 10,19.5 1.3,14.75 1.3,5.25"
+            fill="none" stroke="#22D3EE" strokeWidth="0.8" opacity="0.4"/>
+          <path d="M10,3 L10.7,8.2 L15.4,5.9 L11.5,10 L15.4,14.1 L10.7,11.8 L10,17 L9.3,11.8 L4.6,14.1 L8.5,10 L4.6,5.9 L9.3,8.2 Z"
+            fill="#22D3EE" opacity="0.9"/>
+        </svg>
+        <span style={{ fontSize: 13, fontWeight: 700, color: "#E2E8F0", letterSpacing: "-0.01em" }}>
+          Kube<span style={{ color: "#22D3EE" }}>Astra</span>
+        </span>
+        <div style={{ width: 1, height: 18, background: "var(--border)" }}/>
+        <span style={{ fontSize: 10, color: "#475569", fontFamily: "var(--mono)" }}>Astra Intent</span>
+        <div style={{ flex: 1 }}/>
+
+        <SSHDrawer connected={sshCreds} onConnect={handleConnect} onDisconnect={handleDisconnect}/>
+
+        {healthLoaded && health && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: health.kubectl_available ? "#34D399" : "#FBBF24", boxShadow: health.kubectl_available ? "0 0 5px #34D399" : "none" }}/>
+            <span style={{ fontSize: 10, color: "#475569", fontFamily: "var(--mono)" }}>
+              {sshCreds ? `${sshCreds.host}` : health.kubectl_available ? "local-cluster" : "no cluster"}
+            </span>
           </div>
-        </div>
+        )}
 
-        <div className="flex items-center gap-3 text-xs">
-          <SSHPanel connected={sshCreds} onConnect={handleConnect} onDisconnect={handleDisconnect} />
+        {messages.length > 0 && (
+          <button onClick={handleNewChat} style={{ fontSize: 10, color: "#475569", background: "none", border: "1px solid #1A2535", borderRadius: 4, padding: "3px 8px", cursor: "pointer" }}>
+            New chat
+          </button>
+        )}
+      </div>
 
-          {!healthLoaded ? (
-            /* Still loading — brief spinner dot */
-            <span className="flex items-center gap-1.5 text-xs" style={{ color: "var(--text-muted)" }}>
-              <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "var(--border)" }} />
-              Checking…
-            </span>
-          ) : !health ? (
-            /* Backend unreachable */
-            <span className="flex items-center gap-1.5 text-xs" style={{ color: "var(--danger)" }}>
-              <span className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--danger)" }} />
-              Backend offline
-            </span>
-          ) : (
-            <>
-              {/* kubectl: green = cluster active, yellow = no cluster configured */}
-              <span
-                className="flex items-center gap-1.5"
-                title={health.kubectl_available ? "kubectl connected" : "No cluster configured — use SSH Cluster to connect"}
-                style={{ color: health.kubectl_available ? "var(--success)" : "var(--warning)" }}
-              >
-                <span className="w-1.5 h-1.5 rounded-full" style={{ background: health.kubectl_available ? "var(--success)" : "var(--warning)" }} />
-                {health.kubectl_available ? "kubectl" : "no cluster"}
-              </span>
-              <span className="flex items-center gap-1.5" style={{ color: health.ai_enabled ? "var(--brand)" : "var(--text-muted)" }}>
-                <span className="w-1.5 h-1.5 rounded-full" style={{ background: health.ai_enabled ? "var(--brand)" : "var(--border)" }} />
-                AI
-              </span>
-            </>
-          )}
-
-          {messages.length > 0 && (
-            <button
-              onClick={handleNewChat}
-              className="app-btn-ghost ml-2 px-3 py-1 rounded-lg text-xs"
-            >
-              New chat
-            </button>
-          )}
-        </div>
-      </header>
-
-      {/* ── SSH reconnect banner ── */}
+      {/* ── Reconnect banner ── */}
       {pendingReconnect && !sshCreds && (
-        <ReconnectBanner
-          target={pendingReconnect}
-          onReconnect={handleReconnectFromBanner}
-          onDismiss={() => {
-            setPendingReconnect(null);
-            deleteSshTarget(sessionId);
-          }}
-        />
+        <div style={{ padding: "8px 18px", background: "rgba(34,211,238,0.05)", borderBottom: "1px solid rgba(34,211,238,0.15)", display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+          <span style={{ color: "#22D3EE" }}>Previous SSH: {pendingReconnect.username}@{pendingReconnect.host}</span>
+          <input type="password" placeholder="Password" id="reconnect-pw"
+            style={{ background: "#080D14", border: "1px solid #1A2535", borderRadius: 4, padding: "4px 8px", color: "#E2E8F0", fontSize: 11, outline: "none", width: 140 }}
+            onKeyDown={e => { if (e.key === "Enter") { handleReconnect((e.target as HTMLInputElement).value); } }}/>
+          <button onClick={() => { const el = document.getElementById("reconnect-pw") as HTMLInputElement; if (el) handleReconnect(el.value); }}
+            style={{ fontSize: 10, color: "#22D3EE", background: "rgba(34,211,238,0.1)", border: "1px solid rgba(34,211,238,0.2)", borderRadius: 4, padding: "3px 8px", cursor: "pointer" }}>
+            Reconnect
+          </button>
+          <button onClick={() => { setPendingReconnect(null); deleteSshTarget(sessionId); }}
+            style={{ fontSize: 10, color: "#475569", background: "none", border: "none", cursor: "pointer" }}>
+            Dismiss
+          </button>
+        </div>
       )}
 
-      {/* ── messages ── */}
-      <div className="flex-1 overflow-y-auto px-4 py-6">
-        <div className="max-w-3xl mx-auto space-y-6">
+      {/* ── Thread ── */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "24px 18px", display: "flex", flexDirection: "column", gap: 20 }}>
+        <div style={{ maxWidth: 720, width: "100%", margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
 
           {!historyLoaded && (
-            <div className="flex items-center justify-center h-32 text-sm" style={{ color: "var(--text-muted)" }}>
-              Loading history…
-            </div>
+            <div style={{ textAlign: "center", padding: 32, fontSize: 12, color: "#475569" }}>Loading history…</div>
           )}
 
+          {/* Welcome */}
           {isEmpty && (
-            <div className="flex flex-col items-center justify-center h-full min-h-[60vh] text-center gap-6">
-              <div>
-                {/* App emblem */}
-                <div className="mx-auto mb-5 w-fit">
-                  <AppEmblem size={60} />
-                </div>
-                <h2 className="text-2xl font-semibold" style={{ color: "var(--text-primary)" }}>
-                  How can I help you today?
-                </h2>
-                <p className="mt-2 text-sm max-w-md mx-auto" style={{ color: "var(--text-secondary)" }}>
-                  Ask about Kubernetes errors, pod status, logs, or events.
-                  I&apos;ll route to the right tool automatically.
-                </p>
-                {!sshCreds && (
-                  <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
-                    Connect to a remote cluster via the{" "}
-                    <span style={{ color: "var(--brand)" }}>SSH Cluster</span> button above.
-                  </p>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-xl">
-                {EXAMPLES.map((ex) => (
-                  <button
-                    key={ex}
-                    onClick={() => submit(ex)}
-                    className="text-left text-xs rounded-xl px-4 py-3 transition"
-                    style={{
-                      color: "var(--text-secondary)",
-                      background: "var(--bg-surface-2)",
-                      border: "1px solid var(--border)",
-                    }}
-                    onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--brand-border)";
-                      (e.currentTarget as HTMLButtonElement).style.color = "var(--text-primary)";
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--border)";
-                      (e.currentTarget as HTMLButtonElement).style.color = "var(--text-secondary)";
-                    }}
-                  >
-                    {ex}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* message list */}
-          {messages.map((m, idx) => (
-            <div key={m.id} className={`flex gap-3 group ${m.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
-
-              {/* avatar */}
-              <div
-                className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
-                style={m.role === "user"
-                  ? { background: "var(--brand)", color: "#000" }
-                  : { background: "var(--bg-surface-3)", color: "var(--text-secondary)", border: "1px solid var(--border)" }
-                }
-              >
-                {m.role === "user" ? "U" : "⎈"}
-              </div>
-
-              <div className={`flex flex-col gap-2 max-w-[85%] ${m.role === "user" ? "items-end" : "items-start"}`}>
-
-                {m.role === "user" && m.viaSSH && sshCreds && (
-                  <span className="text-[10px] px-1" style={{ color: "var(--brand)" }}>
-                    via SSH · {sshCreds.host}
-                  </span>
-                )}
-
-                {/* For assistant messages with a result card, show the card first so
-                    the summary text lands at the bottom after auto-scroll. */}
-                {m.role === "assistant" && !m.loading && m.result && m.tool && m.tool !== "none" && (
-                  <div className="w-full">
-                    <ResultCard tool={m.tool} result={m.result} />
-                  </div>
-                )}
-
-                {/* ── User message ── */}
-                {m.role === "user" && (
-                  editingIdx === idx ? (
-                    /* Inline edit textarea */
-                    <div className="flex flex-col gap-2 w-full max-w-xl">
-                      <textarea
-                        className="rounded-xl px-4 py-3 text-sm leading-relaxed resize-none"
-                        style={{
-                          background: "var(--bg-surface-2)",
-                          color: "var(--text-primary)",
-                          border: "1px solid var(--brand)",
-                          outline: "none",
-                          minHeight: "80px",
-                          maxHeight: "300px",
-                        }}
-                        value={editText}
-                        autoFocus
-                        onChange={(e) => setEditText(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleEditSubmit(idx); }
-                          if (e.key === "Escape") handleEditCancel();
-                        }}
-                      />
-                      <div className="flex gap-2 justify-end">
-                        <button
-                          onClick={handleEditCancel}
-                          className="px-3 py-1 rounded-lg text-xs"
-                          style={{ color: "var(--text-muted)", border: "1px solid var(--border)" }}
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          onClick={() => handleEditSubmit(idx)}
-                          disabled={!editText.trim() || loading}
-                          className="px-3 py-1 rounded-lg text-xs font-medium"
-                          style={{ background: "var(--brand)", color: "#000" }}
-                        >
-                          Send
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    /* Icon-only actions left of bubble, bubble to the right */
-                    <div className="flex items-center gap-1.5">
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-                        <button
-                          title={copiedIdx === idx ? "Copied!" : "Copy"}
-                          onClick={() => handleCopy(m.text, idx)}
-                          className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
-                          style={{
-                            background: "var(--bg-surface-3)",
-                            border: "1px solid var(--border)",
-                            color: copiedIdx === idx ? "var(--success)" : "var(--text-muted)",
-                          }}
-                        >
-                          {copiedIdx === idx ? (
-                            <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 8l4 4 8-8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                          ) : (
-                            <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.5"/><path d="M11 5V3.5A1.5 1.5 0 009.5 2h-6A1.5 1.5 0 002 3.5v6A1.5 1.5 0 003.5 11H5" stroke="currentColor" strokeWidth="1.5"/></svg>
-                          )}
-                        </button>
-                        <button
-                          title="Edit and resend"
-                          onClick={() => handleEditStart(idx, m.text)}
-                          className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
-                          style={{
-                            background: "var(--bg-surface-3)",
-                            border: "1px solid var(--border)",
-                            color: "var(--text-muted)",
-                          }}
-                        >
-                          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M11.5 2.5a1.5 1.5 0 012.12 2.12L5 13.24l-3 .76.76-3L11.5 2.5z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                        </button>
-                      </div>
-                      <div className="rounded-2xl rounded-tr-sm px-4 py-3 text-sm leading-relaxed"
-                        style={{ background: "var(--brand)", color: "#000" }}
-                      >
-                        <p className="whitespace-pre-wrap">{m.text}</p>
-                      </div>
-                    </div>
-                  )
-                )}
-
-                {/* ── Assistant bubble ── */}
-                {m.role === "assistant" && (
-                  <div className="rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed"
-                    style={{ background: "var(--bg-surface-2)", color: "var(--text-primary)", border: "1px solid var(--border)" }}
-                  >
-                    {m.loading ? (
-                      <span className="flex items-center gap-2" style={{ color: "var(--text-muted)" }}>
-                        <span className="inline-block w-2 h-2 rounded-full animate-bounce [animation-delay:-0.3s]" style={{ background: "var(--brand)" }} />
-                        <span className="inline-block w-2 h-2 rounded-full animate-bounce [animation-delay:-0.15s]" style={{ background: "var(--brand)" }} />
-                        <span className="inline-block w-2 h-2 rounded-full animate-bounce" style={{ background: "var(--brand)" }} />
-                      </span>
-                    ) : (
-                      <p className="whitespace-pre-wrap">{m.text}</p>
-                    )}
-                  </div>
-                )}
-
-                {m.error && (
-                  <p className="text-xs px-1" style={{ color: "var(--danger)" }}>{m.error}</p>
-                )}
-              </div>
-            </div>
-          ))}
-
-          <div ref={bottomRef} />
-        </div>
-      </div>
-
-      {/* ── input bar ── */}
-      <div
-        className="shrink-0 px-4 py-4"
-        style={{ borderTop: "1px solid var(--border)", background: "var(--bg-surface)" }}
-      >
-        <div className="max-w-3xl mx-auto">
-          {sshCreds && (
-            <div className="flex items-center gap-1.5 text-xs mb-2 px-1" style={{ color: "var(--brand)" }}>
-              <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "var(--brand)" }} />
-              Sending to <span className="font-medium">{sshCreds.username}@{sshCreds.host}</span> via SSH
-            </div>
-          )}
-          <div
-            className="flex items-end gap-3 rounded-2xl px-4 py-3 transition-all"
-            style={{
-              background: "var(--bg-surface-3)",
-              border: `1px solid ${sshCreds ? "var(--brand-border)" : "var(--border)"}`,
-            }}
-            onFocusCapture={(e) => {
-              (e.currentTarget as HTMLDivElement).style.borderColor = sshCreds ? "var(--brand)" : "var(--brand-border)";
-            }}
-            onBlurCapture={(e) => {
-              (e.currentTarget as HTMLDivElement).style.borderColor = sshCreds ? "var(--brand-border)" : "var(--border)";
-            }}
-          >
-            <textarea
-              ref={textareaRef}
-              rows={1}
-              value={input}
-              onChange={(e) => { setInput(e.target.value); autoResize(); }}
-              onKeyDown={handleKeyDown}
-              placeholder={
-                sshCreds
-                  ? `Ask about ${sshCreds.host}… (Enter to send)`
-                  : "Paste an error, describe an issue, or ask a question… (Enter to send, Shift+Enter for new line)"
-              }
-              disabled={loading}
-              className="flex-1 bg-transparent resize-none outline-none text-sm max-h-[200px] disabled:opacity-50"
-              style={{ color: "var(--text-primary)" }}
-            />
-            <button
-              onClick={() => submit(input)}
-              disabled={!input.trim() || loading}
-              className="app-btn-primary shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
-              aria-label="Send"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-                <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
+            <div style={{ textAlign: "center", paddingTop: 80, animation: "artifactSlideIn 0.5s ease both" }}>
+              <svg viewBox="0 0 48 48" width="48" height="48" style={{ margin: "0 auto 16px", display: "block" }}>
+                <polygon points="24,2 43.2,13 43.2,35 24,46 4.8,35 4.8,13"
+                  fill="none" stroke="#22D3EE" strokeWidth="1" opacity="0.3"/>
+                <path d="M24,7 L25.7,19.5 L37,14.2 L27.5,24 L37,33.8 L25.7,28.5 L24,41 L22.3,28.5 L11,33.8 L20.5,24 L11,14.2 L22.3,19.5 Z"
+                  fill="#22D3EE"/>
               </svg>
-            </button>
-          </div>
-          <p className="text-center text-xs mt-2" style={{ color: "var(--text-muted)" }}>
-            No tool selection needed — just describe the problem naturally.
-          </p>
+              <div style={{ fontSize: 16, fontWeight: 600, color: "#94A3B8", marginBottom: 8 }}>Astra is ready</div>
+              <div style={{ fontSize: 13, color: "#2A3A50" }}>Ask anything about your cluster</div>
+            </div>
+          )}
+
+          {/* Messages */}
+          {messages.map((m) => {
+            if (m.role === "user") {
+              return <UserMessage key={m.id} text={m.text} time={formatTime()}/>;
+            }
+
+            // Assistant message
+            if (m.loading) {
+              return (
+                <AstraMessage key={m.id} time={formatTime()} text="Investigating across your cluster…">
+                  {reasoningSteps.length > 0 && <ReasoningBubble steps={reasoningSteps} thinking={isThinking}/>}
+                </AstraMessage>
+              );
+            }
+
+            // Investigation result → RootCauseCard
+            if (isInvestigation(m.tool) && m.result) {
+              const rc = extractRootCause(m.result);
+              const actions = (m.suggestedActions || []).map(a => ({ label: a.label, command: a.command }));
+              return (
+                <AstraMessage key={m.id} time={formatTime()} text={m.text ? undefined : "Investigation complete."}>
+                  {reasoningSteps.length > 0 && <ReasoningBubble steps={reasoningSteps}/>}
+                  <div style={{ marginTop: 10 }}>
+                    <RootCauseCard
+                      severity={rc.severity}
+                      title={rc.title}
+                      pod={rc.pod}
+                      namespace={rc.namespace}
+                      summary={rc.summary || m.text}
+                      metrics={rc.metrics}
+                      evidence={rc.evidence}
+                      onReviewExecute={actions.length > 0 ? () => handleReviewExecute(actions, rc.pod, rc.namespace) : undefined}
+                    />
+                  </div>
+                </AstraMessage>
+              );
+            }
+
+            // Regular result card
+            if (m.result && m.tool && m.tool !== "none") {
+              return (
+                <AstraMessage key={m.id} time={formatTime()}>
+                  <ResultCard tool={m.tool} result={m.result}/>
+                  {m.text && (
+                    <div style={{ marginTop: 10, fontSize: 13, color: "#94A3B8", lineHeight: 1.6 }}>
+                      <ReactMarkdown>{m.text}</ReactMarkdown>
+                    </div>
+                  )}
+                </AstraMessage>
+              );
+            }
+
+            // Plain text
+            return (
+              <AstraMessage key={m.id} time={formatTime()}>
+                <div style={{ fontSize: 13, color: "#94A3B8", lineHeight: 1.6 }}>
+                  <ReactMarkdown>{m.text}</ReactMarkdown>
+                </div>
+                {m.error && <div style={{ fontSize: 11, color: "#EF4444", marginTop: 4 }}>{m.error}</div>}
+              </AstraMessage>
+            );
+          })}
+
+          <div ref={bottomRef}/>
         </div>
       </div>
+
+      {/* ── Intent bar ── */}
+      <IntentBar onSend={submit} listening={loading} clusterName={clusterName}/>
+
+      {/* ── Approval overlay ── */}
+      {showOverlay && (
+        <ApprovalOverlay
+          onClose={() => setShowOverlay(false)}
+          onConfirm={handleExecuteConfirm}
+          actions={overlayActions}
+          targetResource={overlayResource}
+          namespace={overlayNamespace}
+        />
+      )}
     </div>
   );
 }
