@@ -19,7 +19,7 @@ Combines live `kubectl` access with pluggable LLM providers (Gemini, Ollama/loca
   The file lives in docs/kubeastra-demo.webm and is served via raw.githubusercontent.
   If the embed ever fails, the link below is the fallback.
 -->
-<video src="https://github.com/kubeastra/KubeAstra/raw/main/docs/kubeastra-demo.webm" controls width="100%"></video>
+<video src="https://github.com/user-attachments/assets/5a75787b-fa5f-4fe8-a4ad-4abef4ff0f1b" controls width="100%"></video>
 
 ▶ [Watch the 90-second demo](docs/kubeastra-demo.webm) — Kubeastra walking through 7 real Kubernetes failures (CrashLoopBackOff, OOMKilled, ImagePullBackOff, stuck PVC, unschedulable pod, namespace-wide health, runbook generation).
 
