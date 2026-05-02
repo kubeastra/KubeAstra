@@ -14,14 +14,9 @@ Combines live `kubectl` access with pluggable LLM providers (Gemini, Ollama/loca
 
 ## See it in action
 
-<!--
-  GitHub renders this <video> tag inline on the rendered README page.
-  The file lives in docs/kubeastra-demo.webm and is served via raw.githubusercontent.
-  If the embed ever fails, the link below is the fallback.
--->
 <video src="https://github.com/user-attachments/assets/5a75787b-fa5f-4fe8-a4ad-4abef4ff0f1b" controls width="100%"></video>
 
-▶ [Watch the 90-second demo](docs/kubeastra-demo.webm) — Kubeastra walking through 7 real Kubernetes failures (CrashLoopBackOff, OOMKilled, ImagePullBackOff, stuck PVC, unschedulable pod, namespace-wide health, runbook generation).
+▶ [Watch the 90-second demo](https://github.com/user-attachments/assets/5a75787b-fa5f-4fe8-a4ad-4abef4ff0f1b) — Kubeastra walking through 7 real Kubernetes failures (CrashLoopBackOff, OOMKilled, ImagePullBackOff, stuck PVC, unschedulable pod, namespace-wide health, runbook generation).
 
 > Want to reproduce it locally? `make demo` spins up a kind cluster pre-seeded with six broken workloads. See [`demo/README.md`](demo/README.md).
 
@@ -43,9 +38,9 @@ This tool handles that investigation loop for you:
 
 ## Key Features
 
-### 🔍 33 Built-in Kubernetes Tools
+### 🔍 34 Built-in Kubernetes Tools
 
-**Live cluster tools (27)** — pod/deployment/service inspection, event streams, multi-namespace discovery, rollout status, kubeconfig context switching, log retrieval with previous-container support, resource-graph topology, and safe write operations (delete, scale, restart, patch — all gated behind `confirm=true`).
+**Live cluster tools (28)** — pod/deployment/service inspection, event streams, multi-namespace discovery, rollout status, kubeconfig context switching, log retrieval with previous-container support, resource-graph topology, deployment-level investigation, namespace-wide health analysis, and safe write operations (delete, scale, restart, patch — all gated behind `confirm=true`).
 
 **AI analysis tools (6)** — error analysis with RAG-backed similarity search, curated fix playbooks for 11 error categories, AI-generated runbooks, cluster health reports, post-incident summarization.
 
@@ -55,7 +50,7 @@ This tool handles that investigation loop for you:
 |---|---|
 | Chat-based Next.js interface for team-wide troubleshooting | Direct integration into Cursor, Claude Desktop, or any MCP client |
 | Shareable sessions with persistent chat history (SQLite) | Debug without leaving your editor |
-| SSH panel to attach to any remote kubeadm cluster | 33 tools available via stdio or HTTP MCP transport |
+| SSH panel to attach to any remote kubeadm cluster | 34 tools available via stdio or HTTP MCP transport |
 
 ### 🔌 Pluggable LLM Providers
 
@@ -67,7 +62,7 @@ Pick your LLM — **Google Gemini** (default, free tier available) or **Ollama**
 - **Explicit confirmation required** for write operations (`delete`, `scale`, `restart`, `patch`)
 - **Full audit logging** of every command executed
 - **RBAC-aware** — respects your existing Kubernetes permissions
-- **Input validation** — namespace/name/label selector safety checks prevent injection
+- **Input validation** — namespace/name/label-selector safety checks prevent injection
 
 ### 🚀 Deploy Anywhere
 
@@ -122,7 +117,7 @@ GEMINI_API_KEY=your-key-here          # or LLM_PROVIDER=ollama
 ALLOWED_NAMESPACES=prod,staging,default
 ```
 
-Restart your IDE — all 33 tools appear as MCP tools.
+Restart your IDE — all 34 tools appear as MCP tools.
 
 ### Option 4: Deploy to Kubernetes via Helm
 
@@ -134,44 +129,6 @@ helm upgrade --install kubeastra helm/kubeastra \
   --set secrets.geminiApiKey="YOUR_KEY" \
   --set secrets.kubeconfig="$(cat ~/.kube/config | base64 | tr -d '\n')"
 ```
-
----
-
-## Architecture
-
-```
-┌──────────────────────────────────────────────────────┐
-│                    Frontends                          │
-│  ┌──────────────────┐   ┌──────────────────────────┐  │
-│  │  Web Chat UI     │   │  MCP Server              │  │
-│  │  (Next.js)       │   │  (stdio + HTTP transport)│  │
-│  └────────┬─────────┘   └──────────┬───────────────┘  │
-│           │                        │                  │
-│  ┌────────▼────────────────────────▼───────────────┐  │
-│  │         mcp (Core Engine)            │  │
-│  │                                                 │  │
-│  │  ┌──────────────┐     ┌──────────────────────┐  │  │
-│  │  │ kubectl      │     │ LLM Providers        │  │  │
-│  │  │ wrappers     │     │ (Gemini / Ollama)    │  │  │
-│  │  │ (27 tools)   │     │ + AI tools (6 tools) │  │  │
-│  │  └──────┬───────┘     └──────────┬───────────┘  │  │
-│  │         │                        │              │  │
-│  │  ┌──────▼──────┐      ┌──────────▼───────────┐  │  │
-│  │  │ Local or    │      │ Weaviate (optional)  │  │  │
-│  │  │ SSH runner  │      │ RAG similarity       │  │  │
-│  │  └──────┬──────┘      └──────────────────────┘  │  │
-│  └─────────┼──────────────────────────────────────┘  │
-│            │                                          │
-│   ┌────────▼────────┐                                 │
-│   │  Kubernetes     │                                 │
-│   │  Cluster(s)     │                                 │
-│   └─────────────────┘                                 │
-└──────────────────────────────────────────────────────┘
-```
-
-**Core design principle:** a single shared library (`mcp`) provides all investigation logic and AI tools, consumed by two independent frontends. Every tool works identically whether you're in the web UI, Cursor, or Claude Desktop.
-
-Full architecture deep-dive: [`docs/ARCHITECTURE_DIAGRAM.md`](docs/ARCHITECTURE_DIAGRAM.md)
 
 ---
 
@@ -217,7 +174,7 @@ All settings are read from environment variables (or `.env`):
 | `ALLOWED_NAMESPACES` | `*` | Comma-separated list, or `*` for all |
 | `KUBECTL_TIMEOUT_SECONDS` | `15` | Per-command timeout |
 | `MAX_LOG_TAIL_LINES` | `200` | Max log lines per request |
-| `ENABLE_RECOVERY_OPERATIONS` | `false` | Enables `delete_pod`, `rollout_restart`, `scale`, `apply_patch` |
+| `ENABLE_RECOVERY_OPERATIONS` | `false` | Enables `delete_pod`, `rollout_restart`, `scale_deployment`, `apply_patch` |
 | `WEAVIATE_URL` | `http://localhost:8080` | Optional RAG vector DB |
 
 ---
@@ -236,9 +193,9 @@ kubeastra/
 │   ├── ai_tools/          # Error analysis, runbooks, error summary
 │   ├── services/          # LLM providers, Weaviate, embeddings
 │   └── config/settings.py
-├── helm/kubeastra/   # Helm chart
-├── demo/                        # Kind + broken workloads for `make demo`
-└── docs/                        # Architecture diagrams, deployment guide
+├── helm/kubeastra/        # Helm chart
+├── demo/                  # Kind + broken workloads for `make demo`
+└── docs/                  # Public documentation
 ```
 
 ---
@@ -248,13 +205,16 @@ kubeastra/
 - [x] Gemini + Ollama (local) LLM support
 - [x] Demo mode with kind cluster
 - [x] Visual resource graph (Ingress → Service → Deployment → Pod)
-- [ ] OpenAI + Anthropic Claude adapters
-- [ ] Slack bot integration (alert-driven investigation)
-- [ ] "What changed?" view — recent deployments, configmap/secret mutations
+- [x] Approval flow for write operations
+- [x] Deployment-level investigation (`investigate_workload`)
+- [x] Namespace-wide health analysis (`analyze_namespace`)
 - [ ] Agentic investigation loop (multi-step ReAct)
-- [ ] Prometheus/Grafana metrics integration
-- [ ] Shareable session URLs
+- [ ] OpenAI + Anthropic Claude adapters
+- [ ] Prometheus / Loki / Tempo observability integrations
 - [ ] CLI tool (`kubeastra investigate <pod>`)
+- [ ] Slack bot integration (alert-driven investigation)
+- [ ] "What changed?" view — recent deployments, ConfigMap/Secret mutations
+- [ ] Shareable session URLs
 - [ ] VS Code extension (beyond MCP)
 - [ ] Post-mortem generator
 - [ ] CNCF Sandbox submission
@@ -263,7 +223,9 @@ kubeastra/
 
 ## Contributing
 
-Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, project layout, and how to add a new tool.
+Contributions are welcome — especially the items at the top of the roadmap. See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, project layout, and how to add a new tool, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community guidelines.
+
+Looking for a starter task? Check the [`good first issue`](https://github.com/AskKube/kubeastra/labels/good%20first%20issue) label.
 
 ---
 
