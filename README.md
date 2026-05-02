@@ -83,7 +83,7 @@ Pick your LLM — **Google Gemini** (default, free tier available) or **Ollama**
 ### Option 1: Try the demo (60 seconds, no cluster needed)
 
 ```bash
-git clone https://github.com/AskKube/kubeastra.git
+git clone https://github.com/kubeastra/kubeastra.git
 cd kubeastra
 make demo
 ```
@@ -225,7 +225,7 @@ kubeastra/
 
 Contributions are welcome — especially the items at the top of the roadmap. See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, project layout, and how to add a new tool, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community guidelines.
 
-Looking for a starter task? Check the [`good first issue`](https://github.com/AskKube/kubeastra/labels/good%20first%20issue) label.
+Looking for a starter task? Check the [`good first issue`](https://github.com/kubeastra/kubeastra/labels/good%20first%20issue) label.
 
 ---
 
