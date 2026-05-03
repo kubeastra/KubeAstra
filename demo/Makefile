@@ -1,9 +1,13 @@
-.PHONY: help up down clean status workloads cluster ui logs
+.PHONY: help up down clean status workloads cluster ui logs kubeconfig
 
 CLUSTER_NAME := kubeastra-demo
 KIND_CONFIG  := kind-config.yaml
 WORKLOADS    := broken-workloads/
 UI_DIR       := ../ui
+DEMO_KUBECONFIG := $(UI_DIR)/backend/.demo-kubeconfig
+DEMO_COMPOSE_ENV := $(UI_DIR)/.env.demo
+LEGACY_COMPOSE_ENV := $(UI_DIR)/.env
+LEGACY_COMPOSE_ENV_BACKUP := $(UI_DIR)/.env.kubeastra-demo.bak
 
 help:
 	@echo "kubeastra — demo"
@@ -17,7 +21,7 @@ help:
 	@echo "  make down       Remove broken workloads (keep cluster)"
 	@echo "  make clean      Delete the kind cluster entirely"
 
-up: cluster workloads ui
+up: cluster kubeconfig workloads ui
 	@echo ""
 	@echo "Demo ready."
 	@echo "  Web UI:     http://localhost:3000"
@@ -37,6 +41,26 @@ cluster:
 	fi
 	@kubectl cluster-info --context kind-$(CLUSTER_NAME)
 
+kubeconfig:
+	@echo "Preparing demo kubeconfig for the Dockerized backend..."
+	@if [ -f $(LEGACY_COMPOSE_ENV_BACKUP) ]; then \
+		mv $(LEGACY_COMPOSE_ENV_BACKUP) $(LEGACY_COMPOSE_ENV); \
+	elif [ -f $(LEGACY_COMPOSE_ENV) ]; then \
+		grep -v '^KUBEASTRA_KUBECONFIG_FILE=' $(LEGACY_COMPOSE_ENV) > $(LEGACY_COMPOSE_ENV).tmp || true; \
+		mv $(LEGACY_COMPOSE_ENV).tmp $(LEGACY_COMPOSE_ENV); \
+		[ -s $(LEGACY_COMPOSE_ENV) ] || rm -f $(LEGACY_COMPOSE_ENV); \
+	fi
+	@mkdir -p $(dir $(DEMO_KUBECONFIG))
+	@kind get kubeconfig --name $(CLUSTER_NAME) > $(DEMO_KUBECONFIG)
+	@SERVER=$$(kubectl config view --kubeconfig $(DEMO_KUBECONFIG) --minify -o jsonpath='{.clusters[0].cluster.server}'); \
+	DOCKER_SERVER=$$(printf '%s' "$$SERVER" | sed 's#127\.0\.0\.1#host.docker.internal#; s#localhost#host.docker.internal#'); \
+	kubectl config set-cluster kind-$(CLUSTER_NAME) --server="$$DOCKER_SERVER" --kubeconfig $(DEMO_KUBECONFIG) >/dev/null; \
+	kubectl config set-cluster kind-$(CLUSTER_NAME) --tls-server-name=localhost --kubeconfig $(DEMO_KUBECONFIG) >/dev/null; \
+	echo "  Demo backend will use $$DOCKER_SERVER"; \
+	grep -q 'host.docker.internal' $(DEMO_KUBECONFIG) || { echo "Failed to rewrite demo kubeconfig for Docker access"; exit 1; }; \
+	grep -q 'tls-server-name: localhost' $(DEMO_KUBECONFIG) || { echo "Failed to set TLS server name for demo kubeconfig"; exit 1; }
+	@printf 'KUBEASTRA_KUBECONFIG_FILE=%s\n' "$(abspath $(DEMO_KUBECONFIG))" > $(DEMO_COMPOSE_ENV)
+
 workloads:
 	@echo "Applying broken workloads to namespace 'demo'..."
 	kubectl --context kind-$(CLUSTER_NAME) apply -f $(WORKLOADS)
@@ -45,7 +69,7 @@ workloads:
 	@sleep 20
 	@$(MAKE) --no-print-directory status
 
-ui:
+ui: kubeconfig
 	@command -v docker >/dev/null 2>&1 || { echo "docker is required"; exit 1; }
 	@if [ ! -f $(UI_DIR)/backend/.env ]; then \
 		if [ -f $(UI_DIR)/backend/.env.example ]; then \
@@ -58,7 +82,7 @@ ui:
 		fi; \
 	fi
 	@echo "Starting web UI (backend + frontend)..."
-	cd $(UI_DIR) && docker compose up -d --build
+	cd $(UI_DIR) && docker compose --env-file .env.demo up -d --build --force-recreate
 
 status:
 	@kubectl --context kind-$(CLUSTER_NAME) get pods,pvc -n demo -o wide 2>/dev/null || \
@@ -71,7 +95,16 @@ down:
 	@echo "Removing demo workloads (cluster kept)..."
 	-kubectl --context kind-$(CLUSTER_NAME) delete -f $(WORKLOADS) --ignore-not-found
 	@echo "Stopping web UI..."
-	-cd $(UI_DIR) && docker compose down
+	-if [ -f $(DEMO_COMPOSE_ENV) ]; then cd $(UI_DIR) && docker compose --env-file .env.demo down; else cd $(UI_DIR) && docker compose down; fi
+	@if [ -f $(LEGACY_COMPOSE_ENV_BACKUP) ]; then \
+		mv $(LEGACY_COMPOSE_ENV_BACKUP) $(LEGACY_COMPOSE_ENV); \
+	elif [ -f $(LEGACY_COMPOSE_ENV) ]; then \
+		grep -v '^KUBEASTRA_KUBECONFIG_FILE=' $(LEGACY_COMPOSE_ENV) > $(LEGACY_COMPOSE_ENV).tmp || true; \
+		mv $(LEGACY_COMPOSE_ENV).tmp $(LEGACY_COMPOSE_ENV); \
+		[ -s $(LEGACY_COMPOSE_ENV) ] || rm -f $(LEGACY_COMPOSE_ENV); \
+	fi
+	-rm -f $(DEMO_COMPOSE_ENV)
+	-rm -f $(DEMO_KUBECONFIG)
 
 clean: down
 	@echo "Deleting kind cluster '$(CLUSTER_NAME)'..."

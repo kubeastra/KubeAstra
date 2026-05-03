@@ -29,6 +29,9 @@ From the repository root:
 make demo
 ```
 
+The demo uses `ui/backend/.env` for backend settings such as `GEMINI_API_KEY`, `LLM_PROVIDER`, and `ALLOWED_NAMESPACES`.
+It also auto-generates a demo-only kubeconfig and a temporary Compose env override for the Dockerized backend, so the web UI targets the `kind-kubeastra-demo` cluster even if your host machine is pointed at a different kubectl context, without modifying `ui/.env`.
+
 Or equivalently:
 
 ```bash

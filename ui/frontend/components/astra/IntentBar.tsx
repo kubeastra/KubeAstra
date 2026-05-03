@@ -11,7 +11,7 @@ interface IntentBarProps {
   toolCount?: number;
 }
 
-export default function IntentBar({ onSend, listening, clusterName = "GKE-PROD", toolCount = 32 }: IntentBarProps) {
+export default function IntentBar({ onSend, listening, clusterName = "GKE-PROD", toolCount = 33 }: IntentBarProps) {
   const [val, setVal] = useState("");
   const submit = () => {
     if (!val.trim()) return;

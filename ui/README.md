@@ -66,7 +66,7 @@ bash setup.sh
 ```bash
 # backend/.env
 GEMINI_API_KEY=your_key_here          # required for AI features
-ALLOWED_NAMESPACES=prod,staging,dev,default
+ALLOWED_NAMESPACES=*
 ENABLE_RECOVERY_OPERATIONS=false      # set true for write ops
 ```
 
@@ -85,6 +85,8 @@ API_BASE_URL=http://localhost:8000
 ```
 
 behind the scenes and proxies browser requests through `http://localhost:3000/api/*`.
+
+For `make demo`, the backend still reads `ui/backend/.env`, but the demo flow injects a generated kubeconfig and a temporary Compose env override so the container talks to the `kind-kubeastra-demo` cluster instead of relying on your host's current kubectl context or modifying `ui/.env`.
 
 ---
 
@@ -195,7 +197,7 @@ GEMINI_API_KEY=...                 # required for AI intent routing and answer s
 GEMINI_MODEL=gemini-2.5-flash
 
 # kubectl tuning
-ALLOWED_NAMESPACES=prod,staging,dev,default
+ALLOWED_NAMESPACES=*
 KUBECTL_TIMEOUT_SECONDS=15
 MAX_LOG_TAIL_LINES=200
 ENABLE_RECOVERY_OPERATIONS=false   # set true to allow write ops (scale, delete, exec)

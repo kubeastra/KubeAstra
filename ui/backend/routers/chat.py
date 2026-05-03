@@ -303,8 +303,40 @@ def _resolve_pod_ns(params: dict, pod_name: str) -> str:
     return explicit_ns or "default"
 
 
+def _candidate_workload_names(raw_name: str) -> list[str]:
+    """Generate likely Kubernetes resource names from a natural-language phrase."""
+    if not raw_name:
+        return []
+
+    cleaned = re.sub(r"[^a-z0-9\s._-]", " ", raw_name.lower()).strip()
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    if not cleaned:
+        return []
+
+    tokens = [t for t in cleaned.split(" ") if t]
+    generic_suffixes = {"pod", "deployment", "service", "app", "application", "workload"}
+
+    candidates = []
+
+    def _push(name: str) -> None:
+        name = re.sub(r"[-_.]{2,}", "-", name.strip("-._"))
+        if name and name not in candidates:
+            candidates.append(name)
+
+    _push(cleaned.replace(" ", "-"))
+    _push(cleaned.replace(" ", ""))
+
+    if len(tokens) > 1 and tokens[-1] in generic_suffixes:
+        trimmed = tokens[:-1]
+        if trimmed:
+            _push("-".join(trimmed))
+            _push("".join(trimmed))
+
+    return candidates
+
+
 def _resolve_pod_ns_and_name(params: dict, pod_name: str) -> tuple[str, str]:
-    """Return (namespace, exact_pod_name) for get_pod_logs.
+    """Return (namespace, exact_pod_name) for pod-specific tool calls.
 
     Always runs find_workload to resolve partial/prefix pod names to the first
     real running pod name (pods have suffixes like -10, -7d4f9b-xkj2p that
@@ -314,32 +346,34 @@ def _resolve_pod_ns_and_name(params: dict, pod_name: str) -> tuple[str, str]:
     explicit_ns = params.get("namespace")
     if not pod_name:
         return explicit_ns or "default", pod_name
-    try:
-        from k8s.wrappers import find_workload
-        fw = find_workload(pod_name)
-        # find_workload returns {"pods": [...], "deployments": [...], "services": [...]}
-        pods = fw.get("pods", [])
-        deps = fw.get("deployments", [])
 
-        # When namespace was explicitly given, prefer matches from that namespace
-        if explicit_ns:
-            ns_pods = [p for p in pods if p.get("namespace") == explicit_ns]
-            ns_deps = [d for d in deps if d.get("namespace") == explicit_ns]
-            # Fall back to any match if none in the specified namespace
-            pods = ns_pods or pods
-            deps = ns_deps or deps
+    for candidate in _candidate_workload_names(pod_name) or [pod_name]:
+        try:
+            from k8s.wrappers import find_workload
+            fw = find_workload(candidate)
+            # find_workload returns {"pods": [...], "deployments": [...], "services": [...]}
+            pods = fw.get("pods", [])
+            deps = fw.get("deployments", [])
 
-        # Prefer an exact pod match (gives us the full name with ordinal / hash suffix)
-        if pods:
-            first = pods[0]
-            return first.get("namespace") or explicit_ns or "default", first.get("name", pod_name)
+            # When namespace was explicitly given, prefer matches from that namespace
+            if explicit_ns:
+                ns_pods = [p for p in pods if p.get("namespace") == explicit_ns]
+                ns_deps = [d for d in deps if d.get("namespace") == explicit_ns]
+                # Fall back to any match if none in the specified namespace
+                pods = ns_pods or pods
+                deps = ns_deps or deps
 
-        # Fall back to deployment namespace (pod name stays as typed — kubectl may still match it)
-        if deps:
-            return deps[0].get("namespace") or explicit_ns or "default", pod_name
+            # Prefer an exact pod match (gives us the full name with ordinal / hash suffix)
+            if pods:
+                first = pods[0]
+                return first.get("namespace") or explicit_ns or "default", first.get("name", candidate)
 
-    except Exception:
-        pass
+            # Fall back to deployment namespace (pod name stays normalized for later matching)
+            if deps:
+                return deps[0].get("namespace") or explicit_ns or "default", candidate
+        except Exception:
+            pass
+
     return explicit_ns or "default", pod_name
 
 
@@ -359,7 +393,7 @@ def _dispatch_inner(tool: str, params: dict) -> dict:
     elif tool == "investigate_pod":
         from k8s.wrappers import investigate_pod
         pod_name = params.get("pod_name", "")
-        effective_ns = _resolve_pod_ns(params, pod_name)
+        effective_ns, pod_name = _resolve_pod_ns_and_name(params, pod_name)
         return investigate_pod(
             effective_ns,
             pod_name,
@@ -523,10 +557,45 @@ def _gemini_route(message: str, history: list[ChatMessage]) -> dict:
                 break
 
     try:
-        return json.loads(text)
+        routed = json.loads(text)
+        return _normalize_route(message, routed)
     except json.JSONDecodeError as e:
         logger.warning(f"{provider.name} returned non-JSON routing output: {e}")
         return _keyword_route(message, history)
+
+
+def _normalize_route(message: str, routing: dict) -> dict:
+    """Correct known bad routing decisions for targeted failure questions.
+
+    Questions like "why is payment-service crashing?" should trigger a focused
+    investigation, not a namespace-wide events dump.
+    """
+    tool = routing.get("tool")
+    msg = message.lower().strip()
+
+    targeted_failure = re.search(
+        r"^(?:why is|why are|why isn't|why isnt|what is wrong with|what's wrong with|whats wrong with)\s+"
+        r"(?:the\s+)?([a-z0-9][a-z0-9\s\-\.]{0,80}?)\s+"
+        r"(crashing|failing|restarting|pending|unhealthy|down|not starting|not running)\b",
+        msg,
+    )
+
+    if tool == "get_events" and targeted_failure:
+        resource_name = _candidate_workload_names(targeted_failure.group(1).strip("?. "))[0]
+        ns_match = re.search(
+            r"(?:namespace[:\s]+(\S+)|in\s+(?:the\s+)?([a-z0-9][a-z0-9\-]+)\s+namespace)",
+            msg,
+        )
+        params = {"pod_name": resource_name, "use_ai": True}
+        if ns_match:
+            params["namespace"] = ns_match.group(1) or ns_match.group(2)
+        return {
+            "tool": "investigate_pod",
+            "params": params,
+            "explanation": f"Investigating why '{resource_name}' is failing",
+        }
+
+    return routing
 
 
 def _keyword_route(message: str, history: list = None) -> dict:
@@ -613,6 +682,27 @@ def _keyword_route(message: str, history: list = None) -> dict:
                     "explanation": f"Investigating workload '{wl}' in '{ns}'"}
 
     # ── Pod investigation ───────────────────────────────────────────────────
+    targeted_failure = re.search(
+        r"^(?:why is|why are|why isn't|why isnt|what is wrong with|what's wrong with|whats wrong with)\s+"
+        r"(?:the\s+)?([a-z0-9][a-z0-9\s\-\.]{0,80}?)\s+"
+        r"(crashing|failing|restarting|pending|unhealthy|down|not starting|not running)\b",
+        msg,
+    )
+    if targeted_failure:
+        ns_match = re.search(
+            r"(?:namespace[:\s]+(\S+)|in\s+(?:the\s+)?([a-z0-9][a-z0-9\-]+)\s+namespace)",
+            msg,
+        )
+        pod = _candidate_workload_names(targeted_failure.group(1).strip("?. "))[0]
+        params_inv: dict = {"pod_name": pod, "use_ai": True}
+        if ns_match:
+            params_inv["namespace"] = ns_match.group(1) or ns_match.group(2)
+        return {
+            "tool": "investigate_pod",
+            "params": params_inv,
+            "explanation": f"Investigating why '{pod}' is failing",
+        }
+
     if re.search(r"investigate|triage|debug|diagnose", msg):
         ns_match = re.search(r"(?:namespace[:\s]+(\S+)|in\s+([a-z0-9-]+)\s+namespace)", msg)
         pod_match = re.search(r"pod[:\s]+(\S+)|pod\s+named?\s+(\S+)", msg)
@@ -772,9 +862,30 @@ def _keyword_route(message: str, history: list = None) -> dict:
 
 def _friendly_summary(tool: str, result: dict, explanation: str) -> str:
     """Fallback static summary used when synthesis is unavailable."""
+    if tool in {"investigate_pod", "investigate_workload", "analyze_namespace"} and isinstance(result, dict):
+        ai = result.get("ai", {})
+        ai_analysis = ai.get("ai_analysis", {}) if isinstance(ai, dict) else {}
+        if isinstance(ai_analysis, dict) and ai_analysis.get("root_cause"):
+            root = str(ai_analysis.get("root_cause", "")).strip()
+            solution = str(ai_analysis.get("solution", "")).strip()
+            if solution:
+                return f"{root}\n\nSuggested fix: {solution}"
+            return root
+
+        if tool == "investigate_pod":
+            pod_name = result.get("pod_name") or "This pod"
+            classification = result.get("classification", {})
+            mode = classification.get("mode") if isinstance(classification, dict) else None
+            if mode == "CrashLoopBackOff":
+                return f"`{pod_name}` is in **CrashLoopBackOff**. I collected describe output, logs, and events to help pinpoint the root cause."
+            if mode == "ImagePullBackOff":
+                return f"`{pod_name}` is failing because the image cannot be pulled. I collected describe output and events for the exact pull failure."
+            if mode == "Pending":
+                return f"`{pod_name}` is stuck in **Pending**. I collected describe output and scheduling events to show why it is not starting."
+
     summaries = {
         "analyze_error": "Here's the AI diagnosis for your error:",
-        "investigate_pod": "Here's the full pod investigation:",
+        "investigate_pod": "I investigated the pod and collected the most relevant diagnostics.",
         "get_pods": "Here are the pods I found:",
         "get_pod_logs": "Here are the pod logs:",
         "get_events": "Here are the recent events:",
@@ -793,8 +904,8 @@ def _friendly_summary(tool: str, result: dict, explanation: str) -> str:
         "list_namespace_resources": "Here are all resources in the namespace:",
         "list_services": "Here are the services in the namespace:",
         "get_resource_graph": "Here is the resource graph for the namespace:",
-        "investigate_workload": "Here's the workload investigation:",
-        "analyze_namespace": "Here's the namespace health report:",
+        "investigate_workload": "I investigated the workload and summarized the main issue.",
+        "analyze_namespace": "I analyzed the namespace health and summarized the main issues.",
     }
     return summaries.get(tool, explanation)
 
@@ -1052,7 +1163,10 @@ def chat(req: ChatRequest):
         )
 
         # 5. Check if the result itself is an error (KubectlError caught in _dispatch)
-        if isinstance(result, dict) and "error" in result and len(result) <= 2:
+        if isinstance(result, dict) and (
+            ("error" in result and len(result) <= 2) or
+            (result.get("success") is False and result.get("error"))
+        ):
             hint = result.get("suggestion", "")
             err = result.get("error", "Unknown error")
             reply = hint or f"I ran into an issue: {err}"

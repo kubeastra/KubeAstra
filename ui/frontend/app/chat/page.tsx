@@ -100,31 +100,63 @@ function toolToSteps(tool: string, result: Record<string, unknown> | null): Tool
 
 /** Extract root-cause data from investigation results */
 function extractRootCause(result: Record<string, unknown>) {
-  const classification = (result.classification as string) || "";
-  const severity = classification.toLowerCase().includes("critical") ? "critical" as const
-    : classification.toLowerCase().includes("warn") ? "warning" as const
+  const classificationObj = (result.classification || {}) as Record<string, unknown>;
+  const classificationMode = String(classificationObj.mode || result.classification || "");
+  const ai = (result.ai || {}) as Record<string, unknown>;
+  const aiAnalysis = (ai.ai_analysis || {}) as Record<string, unknown>;
+  const severityLabel = String(aiAnalysis.severity || classificationMode || "");
+  const severity = severityLabel.toLowerCase().includes("critical") || classificationMode === "CrashLoopBackOff" || classificationMode === "ImagePullBackOff"
+    ? "critical" as const
+    : severityLabel.toLowerCase().includes("warn") || classificationMode === "Pending"
+    ? "warning" as const
     : "info" as const;
 
-  const highlights = (result.describe_highlights || {}) as Record<string, unknown>;
+  const describe = (result.describe || {}) as Record<string, unknown>;
+  const highlights = (describe.highlights || result.describe_highlights || {}) as Record<string, unknown>;
   const metrics = [];
   if (highlights.restart_count !== undefined) {
     metrics.push({ label: "Restarts", value: String(highlights.restart_count), color: Number(highlights.restart_count) > 0 ? "#EF4444" : "#64748B" });
   }
-  const status = String(result.effective_status || result.status || highlights.state || "");
+  const status = String(classificationMode || result.effective_status || result.status || highlights.state || "");
   if (status) metrics.push({ label: "Status", value: status, color: status.includes("Crash") || status.includes("OOM") ? "#EF4444" : "#34D399" });
   const ready = String(highlights.ready || "");
   if (ready) metrics.push({ label: "Ready", value: ready, color: ready === "True" ? "#34D399" : "#EF4444" });
 
   // Build evidence string
   const evidenceLines: string[] = [];
-  if (result.current_logs) evidenceLines.push("# Current Logs", String(result.current_logs).slice(0, 500));
-  if (result.previous_logs) evidenceLines.push("", "# Previous Logs", String(result.previous_logs).slice(0, 300));
+  const currentLogs = (result.logs_current as Record<string, unknown> | undefined)?.logs;
+  const previousLogs = (result.logs_previous as Record<string, unknown> | undefined)?.logs;
+  const stderr = result.stderr;
+  const events = (result.events as Record<string, unknown> | undefined)?.events as Array<Record<string, unknown>> | undefined;
+  if (currentLogs) evidenceLines.push("# Current Logs", String(currentLogs).slice(0, 700));
+  if (previousLogs) evidenceLines.push("", "# Previous Logs", String(previousLogs).slice(0, 500));
+  if (!currentLogs && !previousLogs && stderr) evidenceLines.push("# Error", String(stderr).slice(0, 500));
+  if (events && events.length > 0) {
+    evidenceLines.push("", "# Events");
+    for (const event of events.slice(0, 5)) {
+      evidenceLines.push(`- [${String(event.type || "")}] ${String(event.reason || "")}: ${String(event.message || "")}`.slice(0, 220));
+    }
+  }
 
   const pod = String(result.pod_name || result.pod || result.name || "");
   const ns = String(result.namespace || "");
-  const summary = String(result.ai_analysis || result.analysis || classification || "");
+  const rootCause = String(aiAnalysis.root_cause || "");
+  const solution = String(aiAnalysis.solution || "");
+  const summary = rootCause
+    ? solution ? `${rootCause}\n\nSuggested fix: ${solution}` : rootCause
+    : String(result.error || result.analysis || classificationMode || "");
+  const confidence = aiAnalysis.confidence !== undefined ? Number(aiAnalysis.confidence) : undefined;
 
-  return { severity, pod, namespace: ns, summary, metrics, evidence: evidenceLines.join("\n"), title: classification || "Investigation Result" };
+  return {
+    severity,
+    pod,
+    namespace: ns,
+    summary,
+    metrics,
+    evidence: evidenceLines.join("\n"),
+    title: classificationMode || "Investigation Result",
+    confidence,
+  };
 }
 
 /* ── SSH Panel (collapsible drawer) ──────────────────────────── */

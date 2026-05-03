@@ -18,6 +18,9 @@ env/
 .env
 .env.local
 .env.*.local
+ui/backend/.demo-kubeconfig
+ui/.env.demo
+ui/.env.kubeastra-demo.bak
 
 # ── Runtime files ──────────────────────────────────────────────────────────────
 *.log

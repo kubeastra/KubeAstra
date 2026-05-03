@@ -7,12 +7,15 @@ services:
       - "8000:8000"
     volumes:
       - ../mcp:/app/mcp
-      - ~/.kube:/root/.kube:ro
+      - ${KUBEASTRA_KUBECONFIG_FILE:-~/.kube/config}:/root/.kube/config:ro
     env_file:
       - ./backend/.env
     environment:
       MCP_PATH: /app/mcp
       PYTHONPATH: /app/mcp
+      KUBECONFIG: /root/.kube/config
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
   frontend:

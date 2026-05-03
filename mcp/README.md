@@ -7,7 +7,7 @@ A single, unified MCP (Model Context Protocol) server that merges the best of tw
 | `mcp-k8s-investigation-agent` | Live kubectl tools, multi-cluster support, recovery operations, deployment repo search |
 | `k8s-ansible-mcp` | Gemini AI error analysis, RAG similarity search, fix playbooks, runbook generation |
 
-**Result: 32 tools in one server**, covering the full DevOps loop — investigate → diagnose → fix → document.
+**Result: 33 tools in one server**, covering the full DevOps loop — investigate → diagnose → fix → document.
 
 The same toolset is available through two MCP transports:
 - `stdio` for local IDE integration
@@ -38,7 +38,7 @@ GEMINI_API_KEY=your_key_here
 ALLOWED_NAMESPACES=prod,staging,dev,default
 ```
 
-Restart Cursor — the `kubeastra` MCP server will be active with all 32 tools.
+Restart Cursor — the `kubeastra` MCP server will be active with all 33 tools.
 
 To expose the server over localhost HTTP for another IDE:
 ```bash
@@ -58,7 +58,7 @@ mcp/
 ├── mcp_server/
 │   ├── server.py       # MCP entry point (stdio server)
 │   ├── runtime.py      # Shared MCP bootstrap helpers
-│   ├── tools.py        # All 32 tool registrations
+│   ├── tools.py        # All 33 tool registrations
 │   └── schemas.py      # Pydantic input schemas for all tools
 ├── http_mcp/
 │   ├── http_server.py  # Streamable HTTP MCP endpoint at /mcp
@@ -93,7 +93,7 @@ mcp/
 
 ---
 
-## All 32 Tools
+## All 33 Tools
 
 ### Live kubectl Tools (26)
 

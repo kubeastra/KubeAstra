@@ -38,9 +38,9 @@ This tool handles that investigation loop for you:
 
 ## Key Features
 
-### 🔍 34 Built-in Kubernetes Tools
+### 🔍 33 Built-in Kubernetes Tools
 
-**Live cluster tools (28)** — pod/deployment/service inspection, event streams, multi-namespace discovery, rollout status, kubeconfig context switching, log retrieval with previous-container support, resource-graph topology, deployment-level investigation, namespace-wide health analysis, and safe write operations (delete, scale, restart, patch — all gated behind `confirm=true`).
+**Live cluster tools (27)** — pod/deployment/service inspection, event streams, multi-namespace discovery, rollout status, kubeconfig context switching, log retrieval with previous-container support, resource-graph topology, deployment-level investigation, namespace-wide health analysis, and safe write operations (delete, scale, restart, patch — all gated behind `confirm=true`).
 
 **AI analysis tools (6)** — error analysis with RAG-backed similarity search, curated fix playbooks for 11 error categories, AI-generated runbooks, cluster health reports, post-incident summarization.
 
@@ -50,7 +50,7 @@ This tool handles that investigation loop for you:
 |---|---|
 | Chat-based Next.js interface for team-wide troubleshooting | Direct integration into Cursor, Claude Desktop, or any MCP client |
 | Shareable sessions with persistent chat history (SQLite) | Debug without leaving your editor |
-| SSH panel to attach to any remote kubeadm cluster | 34 tools available via stdio or HTTP MCP transport |
+| SSH panel to attach to any remote kubeadm cluster | 33 tools available via stdio or HTTP MCP transport |
 
 ### 🔌 Pluggable LLM Providers
 
@@ -82,6 +82,11 @@ Pick your LLM — **Google Gemini** (default, free tier available) or **Ollama**
 
 ### Option 1: Try the demo (60 seconds, no cluster needed)
 
+Prerequisites for `make demo`:
+- Docker Desktop
+- `kind`
+- `kubectl`
+
 ```bash
 git clone https://github.com/kubeastra/kubeastra.git
 cd kubeastra
@@ -89,6 +94,8 @@ make demo
 ```
 
 Spins up a local kind cluster with pre-broken workloads (CrashLoop, OOM, ImagePull, stuck PVC) and launches the web UI. Open http://localhost:3000 and ask *"what's broken in the demo namespace?"*.
+If you're setting this up on a new machine, see [`demo/README.md`](demo/README.md) for the full demo prerequisites.
+The demo UI reads backend settings from `ui/backend/.env` and generates its own demo-specific kubeconfig and Compose env override automatically, so it does not depend on your host's current kubectl context and does not modify `ui/.env`.
 
 ### Option 2: Run locally against your own cluster
 
@@ -117,7 +124,7 @@ GEMINI_API_KEY=your-key-here          # or LLM_PROVIDER=ollama
 ALLOWED_NAMESPACES=prod,staging,default
 ```
 
-Restart your IDE — all 34 tools appear as MCP tools.
+Restart your IDE — all 33 tools appear as MCP tools.
 
 ### Option 4: Deploy to Kubernetes via Helm
 
