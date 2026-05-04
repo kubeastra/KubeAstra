@@ -14,9 +14,9 @@ Combines live `kubectl` access with pluggable LLM providers (Gemini, Ollama/loca
 
 ## See it in action
 
-<video src="https://github.com/user-attachments/assets/5a75787b-fa5f-4fe8-a4ad-4abef4ff0f1b" controls width="100%"></video>
+<video src="https://github.com/user-attachments/assets/3a8d4ef7-8773-49a5-b9db-7112de3960ff" controls width="100%"></video>
 
-▶ [Watch the 90-second demo](https://github.com/user-attachments/assets/5a75787b-fa5f-4fe8-a4ad-4abef4ff0f1b) — Kubeastra walking through 7 real Kubernetes failures (CrashLoopBackOff, OOMKilled, ImagePullBackOff, stuck PVC, unschedulable pod, namespace-wide health, runbook generation).
+▶ [Watch the 90-second demo](https://github.com/user-attachments/assets/3a8d4ef7-8773-49a5-b9db-7112de3960ff) — Kubeastra walking through 7 real Kubernetes failures (CrashLoopBackOff, OOMKilled, ImagePullBackOff, stuck PVC, unschedulable pod, namespace-wide health, runbook generation).
 
 > Want to reproduce it locally? `make demo` spins up a kind cluster pre-seeded with six broken workloads. See [`demo/README.md`](demo/README.md).
 
