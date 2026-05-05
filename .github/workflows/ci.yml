@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  python-build:
+    name: Python compile + import smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install MCP dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r mcp/requirements.txt
+
+      - name: Install backend dependencies
+        run: |
+          pip install -r ui/backend/requirements.txt
+
+      - name: Compile MCP package
+        run: |
+          python -m compileall -q mcp
+
+      - name: Compile backend package
+        run: |
+          python -m compileall -q ui/backend
+
+      - name: Import smoke test
+        env:
+          PYTHONPATH: ${{ github.workspace }}/mcp
+        run: |
+          python -c "from mcp_server import tools; print(f'Tools registered: OK')"
+          python -c "from k8s import wrappers; print('Wrappers import: OK')"
+          python -c "from services.llm import get_provider; print('LLM provider factory: OK')"
+
+  frontend-build:
+    name: Frontend type-check + build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: ui/frontend/package-lock.json
+
+      - name: Install
+        working-directory: ui/frontend
+        run: npm ci
+
+      - name: Type-check
+        working-directory: ui/frontend
+        run: npx tsc --noEmit
+
+      - name: Production build
+        working-directory: ui/frontend
+        run: npm run build
