@@ -20,6 +20,7 @@ Cursor Configuration (~/.cursor/mcp.json):
 """
 
 import asyncio
+from argparse import ArgumentParser
 import logging
 import sys
 from pathlib import Path
@@ -28,9 +29,7 @@ _root = str(Path(__file__).resolve().parent.parent)
 if _root not in sys.path:
     sys.path.insert(0, _root)
 
-from mcp.server.stdio import stdio_server
-
-from mcp_server.runtime import build_server, log_runtime_settings
+from version import VERSION_DISPLAY
 
 logging.basicConfig(
     level=logging.INFO,
@@ -44,7 +43,19 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def parse_args() -> None:
+    """Parse CLI flags for the stdio MCP server."""
+    parser = ArgumentParser(description="Kubeastra MCP Server — stdio transport")
+    parser.add_argument("--version", action="version", version=VERSION_DISPLAY)
+    parser.parse_args()
+
+
 async def main():
+    parse_args()
+
+    from mcp.server.stdio import stdio_server
+    from mcp_server.runtime import build_server, log_runtime_settings
+
     logger.info("Starting Kubeastra MCP Server (unified)")
 
     try:
