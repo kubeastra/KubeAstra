@@ -138,15 +138,25 @@ Failure mode detected: {mode}
 
 Based on this LIVE cluster data, provide:
 1. Root cause diagnosis
-2. Step-by-step fix commands (use actual pod name and namespace)
+2. Actionable fix commands that RESOLVE the issue (not diagnostic commands — the investigation already ran kubectl get/describe/logs)
 3. Prevention recommendations
+
+IMPORTANT for "commands": Only include commands that CHANGE something to fix the problem, such as:
+- kubectl delete pod {pod_name} -n {namespace}  (force restart)
+- kubectl rollout restart deployment/<name> -n {namespace}
+- kubectl scale deployment/<name> --replicas=<N> -n {namespace}
+- kubectl patch <resource> -n {namespace} -p '...'
+- kubectl set image deployment/<name> container=<image> -n {namespace}
+- kubectl set resources deployment/<name> -c <container> --limits=memory=<size> -n {namespace}
+Do NOT include kubectl get, kubectl describe, kubectl logs, or kubectl exec — those are diagnostic, not fixes.
+If there is no safe automated fix (e.g., the fix requires editing a Helm chart or external service), return an empty commands array and explain the manual steps in "solution".
 
 Respond ONLY with valid JSON matching this schema:
 {{
     "root_cause": "...",
     "solution": "...",
-    "steps": ["..."],
-    "commands": [{{"cmd": "...", "description": "..."}}],
+    "steps": ["step 1", "step 2"],
+    "commands": [{{"cmd": "kubectl delete pod {pod_name} -n {namespace}", "description": "Restart the pod"}}],
     "prevention": "...",
     "severity": "critical|high|medium|low",
     "confidence": 0.9,

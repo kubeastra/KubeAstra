@@ -1,0 +1,13 @@
+{
+  "name": "kubeastra-demo-recorder",
+  "version": "1.0.0",
+  "description": "Playwright walkthrough for recording a Kubeastra demo video.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "demo": "node walkthrough.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.48.0"
+  }
+}

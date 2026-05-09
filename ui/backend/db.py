@@ -79,6 +79,18 @@ CREATE TABLE IF NOT EXISTS ssh_targets (
     updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS cluster_connections (
+    session_id      TEXT PRIMARY KEY,
+    mode            TEXT NOT NULL,           -- 'autodetect' | 'kubeconfig-upload'
+    context_name    TEXT NOT NULL,
+    cluster_name    TEXT NOT NULL DEFAULT '',
+    server_url      TEXT NOT NULL DEFAULT '',
+    namespace       TEXT NOT NULL DEFAULT 'default',
+    kubeconfig_path TEXT,                    -- temp file path for uploads, NULL for autodetect
+    updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE
+);
 """
 
 
@@ -203,3 +215,73 @@ def delete_ssh_target(session_id: str) -> None:
     """Clear saved SSH target (called on disconnect)."""
     with _conn() as con:
         con.execute("DELETE FROM ssh_targets WHERE session_id = ?", (session_id,))
+
+
+# ── Cluster connection helpers ───────────────────────────────────────────────
+
+def save_cluster_connection(
+    session_id: str,
+    mode: str,
+    context_name: str,
+    cluster_name: str = "",
+    server_url: str = "",
+    namespace: str = "default",
+    kubeconfig_path: Optional[str] = None,
+) -> None:
+    """Save an active cluster connection for a session."""
+    upsert_session(session_id)
+    with _conn() as con:
+        con.execute(
+            """
+            INSERT INTO cluster_connections(
+                session_id, mode, context_name, cluster_name,
+                server_url, namespace, kubeconfig_path
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(session_id) DO UPDATE SET
+                mode = excluded.mode,
+                context_name = excluded.context_name,
+                cluster_name = excluded.cluster_name,
+                server_url = excluded.server_url,
+                namespace = excluded.namespace,
+                kubeconfig_path = excluded.kubeconfig_path,
+                updated_at = datetime('now')
+            """,
+            (session_id, mode, context_name, cluster_name,
+             server_url, namespace, kubeconfig_path),
+        )
+
+
+def get_cluster_connection(session_id: str) -> Optional[dict]:
+    """Return the active cluster connection for a session, or None."""
+    with _conn() as con:
+        row = con.execute(
+            """SELECT mode, context_name, cluster_name, server_url,
+                      namespace, kubeconfig_path
+               FROM cluster_connections WHERE session_id = ?""",
+            (session_id,),
+        ).fetchone()
+    if row:
+        return {
+            "mode": row["mode"],
+            "context_name": row["context_name"],
+            "cluster_name": row["cluster_name"],
+            "server_url": row["server_url"],
+            "namespace": row["namespace"],
+            "kubeconfig_path": row["kubeconfig_path"],
+        }
+    return None
+
+
+def delete_cluster_connection(session_id: str) -> Optional[str]:
+    """Delete cluster connection. Returns the kubeconfig_path for cleanup."""
+    with _conn() as con:
+        row = con.execute(
+            "SELECT kubeconfig_path FROM cluster_connections WHERE session_id = ?",
+            (session_id,),
+        ).fetchone()
+        con.execute(
+            "DELETE FROM cluster_connections WHERE session_id = ?",
+            (session_id,),
+        )
+    return row["kubeconfig_path"] if row else None

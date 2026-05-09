@@ -10,6 +10,8 @@ const nextConfig: NextConfig = {
   // which makes `@import "tailwindcss"` fail to resolve from ui/ instead of
   // ui/frontend/node_modules/.
   outputFileTracingRoot: path.resolve(__dirname),
+  // Allow dev HMR when accessing via 127.0.0.1 instead of localhost
+  allowedDevOrigins: ["http://127.0.0.1:3000"],
 };
 
 export default nextConfig;

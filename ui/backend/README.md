@@ -2,81 +2,93 @@
 
 FastAPI backend for the Kubeastra Web UI.
 
-This service exposes the REST API used by the Next.js frontend and imports logic directly from `mcp` so there is no duplicated Kubernetes or AI execution layer.
+This service exposes the REST API consumed by the Next.js frontend and imports logic directly from `mcp/` — there is no duplicated Kubernetes or AI execution layer.
 
-## What Changed
+## What It Does
 
-- Health checks now work on both `/health` and `/api/health`
-- Added request logging middleware with request IDs and latency
-- Added chat/tool dispatch logs in `routers/chat.py`
-- Frontend integration now assumes same-origin `/api/*` calls from the browser, with the Next.js server proxying requests here
-
-## Responsibilities
-
-- serve chat requests at `POST /api/chat`
-- persist chat history and SSH target metadata in SQLite
-- expose health, session, kubectl, AI, and recovery endpoints
-- route natural-language chat requests into `mcp` wrapper/tool calls
-- switch to SSH-backed kubectl execution when per-request SSH credentials are supplied
+- **ReAct agent orchestration** — multi-step investigations that chain kubectl tools, analyze results, and produce root cause diagnoses with fix suggestions
+- **Cluster connection management** — autodetect local kubeconfig, accept uploaded kubeconfigs, verify connectivity, manage temp files securely
+- **Safe command execution** — reviewed kubectl write commands (rollout restart, scale, delete pod, patch) executed through an allowlisted endpoint
+- **Intent routing** — classifies natural-language questions and routes them to the appropriate tool or triggers a full ReAct investigation
+- **Session persistence** — chat history, cluster connections, and SSH targets stored in SQLite
+- **Security hardening** — session ID sanitization, path traversal prevention, unknown tool rejection, temp file cleanup on shutdown
 
 ## Runtime Flow
 
 ```text
 Browser
-  -> Next.js frontend on :3000
+  -> Next.js frontend on :3300
   -> frontend /api/* proxy
-  -> FastAPI backend on :8000
+  -> FastAPI backend on :8800
+     |-- routers/chat.py      (intent classification + ReAct dispatch)
+     |-- react.py             (multi-step investigation loop)
+     |-- routers/cluster.py   (cluster connection lifecycle)
+     +-- routers/sessions.py  (history + SSH targets)
   -> mcp shared logic
   -> kubectl / SSH / Gemini / Weaviate
 ```
 
 ## Key Files
 
-- [main.py](/path/to/kubeastra/ui/backend/main.py)
-  App setup, middleware, request logging, lifespan init
-- [db.py](/path/to/kubeastra/ui/backend/db.py)
-  SQLite persistence
-- [routers/chat.py](/path/to/kubeastra/ui/backend/routers/chat.py)
-  Main chat router and dispatcher
-- [routers/health.py](/path/to/kubeastra/ui/backend/routers/health.py)
-  Health endpoints
-- [routers/sessions.py](/path/to/kubeastra/ui/backend/routers/sessions.py)
-  Chat history and SSH target endpoints
+- **main.py** — App setup, middleware, request logging, lifespan init
+- **react.py** — ReAct loop engine: think/act/observe cycle, tool descriptions, observation truncation, 90s wall-clock timeout, fix extraction
+- **db.py** — SQLite persistence (chat history, cluster connections, SSH targets, post-mortems)
+- **routers/chat.py** — Main chat router: intent classification, tool dispatch, ReAct trigger, `/api/chat/execute` for safe write ops
+- **routers/cluster.py** — Cluster connection: autodetect, kubeconfig upload/parse, context select, connectivity check, disconnect + cleanup
+- **routers/sessions.py** — Chat history and SSH target CRUD
+- **routers/health.py** — Health endpoints (`/health`, `/api/health`)
+- **routers/recovery.py** — Legacy write operation endpoints (exec, delete-pod, restart, scale, patch)
 
 ## Local Run
 
 ```bash
 cd ui/backend
-MCP_PATH=../../mcp PYTHONPATH=../../mcp venv/bin/uvicorn main:app --reload --port 8000
+MCP_PATH=../../mcp PYTHONPATH=../../mcp venv/bin/uvicorn main:app --reload --port 8800
 ```
 
-## Health Endpoints
+## API Endpoints
 
-- `GET /health`
-- `GET /api/health`
+### Chat & Investigation
 
-These return:
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/chat` | Main chat — classifies intent, dispatches tools or triggers ReAct investigation |
+| `POST` | `/api/chat/execute` | Execute a reviewed kubectl write command (allowlisted prefixes only) |
 
-- backend status
-- whether `kubectl` is available
-- current kubectl context when available
-- whether Gemini is enabled
-- configured Weaviate URL
+### Cluster Connection
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/cluster/autodetect` | Detect local kubeconfig contexts (or in-cluster SA) |
+| `POST` | `/api/cluster/connect/kubeconfig` | Upload kubeconfig content, parse and return contexts |
+| `POST` | `/api/cluster/connect/context` | Select context, verify connectivity via `kubectl cluster-info` |
+| `POST` | `/api/cluster/disconnect` | Disconnect and delete temp kubeconfig |
+| `GET` | `/api/cluster/status/{session_id}` | Current connection status for a session |
+
+### Sessions
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/sessions/{id}/history` | Load chat history |
+| `DELETE` | `/api/sessions/{id}/history` | Clear chat history (New Chat) |
+| `GET/POST/DELETE` | `/api/sessions/{id}/ssh-target` | SSH target CRUD |
+
+### Health
+
+| Method | Path | Returns |
+|--------|------|---------|
+| `GET` | `/health` | Backend status, kubectl availability, Gemini status, Weaviate URL |
+| `GET` | `/api/health` | Same (probe-friendly alias) |
 
 ## Logging
 
-The backend now logs:
+The backend emits structured logs:
 
-- request ID
-- HTTP method
-- request path
-- response status
-- elapsed time in milliseconds
-- selected chat tool
-- tool dispatch duration
-- SSH connection failures
-
-This makes local debugging and container operations much easier.
+- **Request level** — request ID, HTTP method, path, status, elapsed ms
+- **ReAct iterations** — tool called, observation size, iteration count, wall-clock elapsed
+- **Chat routing** — selected tool, SSH/cluster connection mode
+- **Security events** — sanitized session IDs, rejected unknown tools, temp file operations
+- **Connection events** — SSH failures, cluster connectivity checks
 
 ## Environment Variables
 
@@ -97,12 +109,13 @@ EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
 ## Verification
 
 ```bash
-python3 -m py_compile main.py routers/chat.py routers/health.py
+# Syntax check all key files
+python3 -m py_compile main.py react.py routers/chat.py routers/cluster.py routers/health.py
 ```
 
 Manual checks:
 
-- `curl http://localhost:8000/health`
-- `curl http://localhost:8000/api/health`
-- open `http://localhost:3000/chat`
-- submit a chat request and inspect backend logs for request IDs and tool timing
+- `curl http://localhost:8800/health` — verify backend, kubectl, Gemini status
+- `curl http://localhost:8800/api/cluster/autodetect` — should return local contexts
+- Open `http://localhost:3300/chat` — connect a cluster, run an investigation
+- Check backend logs for request IDs, ReAct iteration traces, and tool timing

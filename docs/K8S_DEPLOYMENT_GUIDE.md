@@ -14,10 +14,10 @@ Artifactory (your registry)
   └── kubeastra-frontend:1.0.0  ← Next.js standalone
 
 Kubernetes namespace: kubeastra
-  ├── Deployment/backend         (1 pod — FastAPI on :8000)
-  ├── Deployment/frontend        (1 pod — Next.js on :3000)
-  ├── Service/backend            (ClusterIP :8000)
-  ├── Service/frontend           (ClusterIP :3000)
+  ├── Deployment/backend         (1 pod — FastAPI on :8800)
+  ├── Deployment/frontend        (1 pod — Next.js on :3300)
+  ├── Service/backend            (ClusterIP :8800)
+  ├── Service/frontend           (ClusterIP :3300)
   ├── ConfigMap/app-config       (env vars — timeouts, namespaces, model names)
   ├── Secret/app-secrets         (GEMINI_API_KEY + kubeconfig file)
   ├── ServiceAccount             (pod identity)
@@ -105,15 +105,15 @@ docker build \
 At runtime, the frontend container reads:
 
 ```bash
-API_BASE_URL=http://<backend-host>:8000
+API_BASE_URL=http://<backend-host>:8800
 ```
 
 from its environment.
 
 **Verify the build:**
 ```bash
-docker run --rm -p 3000:3000 your-artifactory.example.com/kubeastra-frontend:1.0.0
-# Open http://localhost:3000 — you should see the chat UI
+docker run --rm -p 3300:3300 your-artifactory.example.com/kubeastra-frontend:1.0.0
+# Open http://localhost:3300 — you should see the chat UI
 ```
 
 ---
@@ -306,15 +306,15 @@ Open two terminal windows:
 
 ```bash
 # Terminal 1 — backend
-kubectl port-forward -n kubeastra service/kubeastra-backend 8000:8000
+kubectl port-forward -n kubeastra service/kubeastra-backend 8800:8800
 
 # Terminal 2 — frontend
-kubectl port-forward -n kubeastra service/kubeastra-frontend 3000:3000
+kubectl port-forward -n kubeastra service/kubeastra-frontend 3300:3300
 ```
 
-Open `http://localhost:3000` in your browser.
+Open `http://localhost:3300` in your browser.
 
-The browser talks to the frontend on port `3000`, and the frontend server proxies `/api/*` to the backend on port `8000`.
+The browser talks to the frontend on port `3300`, and the frontend server proxies `/api/*` to the backend on port `8800`.
 
 ### Option B — Ingress (for team access)
 
@@ -362,8 +362,8 @@ cd kubeastra/ui
 ```
 
 This starts:
-- **Backend** — `uvicorn main:app --port 8000` (with `MCP_PATH` and `PYTHONPATH` set to `mcp/`)
-- **Frontend** — `npm run dev` on port 3000 with `API_BASE_URL=http://localhost:8000`
+- **Backend** — `uvicorn main:app --port 8800` (with `MCP_PATH` and `PYTHONPATH` set to `mcp/`)
+- **Frontend** — `npm run dev` on port 3300 with `API_BASE_URL=http://localhost:8800`
 
 Press `Ctrl+C` to stop both.
 
@@ -426,9 +426,9 @@ kubeastra/
             ├── serviceaccount.yaml      ← Pod identity
             ├── rbac.yaml                ← ClusterRole + ClusterRoleBinding
             ├── backend-deployment.yaml  ← Mounts kubeconfig Secret, reads ConfigMap
-            ├── backend-service.yaml     ← ClusterIP :8000
+            ├── backend-service.yaml     ← ClusterIP :8800
             ├── frontend-deployment.yaml ← Passes API_BASE_URL at runtime
-            ├── frontend-service.yaml    ← ClusterIP :3000
+            ├── frontend-service.yaml    ← ClusterIP :3300
             └── ingress.yaml             ← Optional, disabled by default
 ```
 

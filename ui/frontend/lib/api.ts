@@ -157,6 +157,111 @@ export async function deleteSshTarget(sessionId: string): Promise<void> {
   }
 }
 
+// ── Cluster connection ───────────────────────────────────────────────────────
+
+export interface KubeContext {
+  name: string;
+  cluster: string;
+  server: string;
+  user: string;
+  namespace: string;
+}
+
+export interface ClusterStatus {
+  connected: boolean;
+  mode?: string;
+  context_name?: string;
+  cluster_name?: string;
+  server_url?: string;
+  namespace?: string;
+}
+
+export async function clusterAutodetect(): Promise<{
+  in_cluster: boolean;
+  contexts: KubeContext[];
+  kubeconfig_path?: string;
+  current_context?: string;
+  message?: string;
+  error?: string;
+}> {
+  try {
+    const res = await fetch(apiUrl("/api/cluster/autodetect"));
+    if (!res.ok) return { in_cluster: false, contexts: [] };
+    return res.json();
+  } catch {
+    return { in_cluster: false, contexts: [] };
+  }
+}
+
+export async function clusterUploadKubeconfig(
+  content: string,
+  sessionId: string
+): Promise<{
+  contexts: KubeContext[];
+  kubeconfig_path?: string;
+  current_context?: string;
+  error?: string;
+  message?: string;
+}> {
+  const res = await fetch(apiUrl("/api/cluster/connect/kubeconfig"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content, session_id: sessionId }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function clusterConnectContext(
+  sessionId: string,
+  contextName: string,
+  mode: string = "autodetect",
+  kubeconfigPath?: string
+): Promise<{
+  connected: boolean;
+  cluster_name?: string;
+  context_name?: string;
+  server_url?: string;
+  namespace?: string;
+  mode?: string;
+  error?: string;
+}> {
+  const res = await fetch(apiUrl("/api/cluster/connect/context"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      session_id: sessionId,
+      context_name: contextName,
+      mode,
+      kubeconfig_path: kubeconfigPath,
+    }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function clusterDisconnect(sessionId: string): Promise<void> {
+  try {
+    await fetch(apiUrl("/api/cluster/disconnect"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session_id: sessionId }),
+    });
+  } catch {
+    // best-effort
+  }
+}
+
+export async function clusterStatus(sessionId: string): Promise<ClusterStatus> {
+  try {
+    const res = await fetch(apiUrl(`/api/cluster/status/${sessionId}`));
+    if (!res.ok) return { connected: false };
+    return res.json();
+  } catch {
+    return { connected: false };
+  }
+}
+
 // ── Health ────────────────────────────────────────────────────────────────────
 
 export async function checkHealth() {
@@ -172,10 +277,12 @@ export async function checkHealth() {
 
 export async function executeCommand(
   command: string,
-  ssh?: SSHCredentials | null
+  ssh?: SSHCredentials | null,
+  sessionId?: string | null
 ): Promise<ExecuteResponse> {
   const body: Record<string, unknown> = { command };
   if (ssh) body.ssh = ssh;
+  if (sessionId) body.session_id = sessionId;
   const res = await fetch(apiUrl("/api/execute"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },

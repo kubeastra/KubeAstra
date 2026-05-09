@@ -89,6 +89,7 @@ class ChatResponse(BaseModel):
 class ExecuteRequest(BaseModel):
     command: str
     ssh: Optional[SSHCredentials] = None
+    session_id: Optional[str] = None
 
 
 class ExecuteResponse(BaseModel):
@@ -515,7 +516,8 @@ def _dispatch_inner(tool: str, params: dict) -> dict:
         return get_resource_graph(ns)
 
     else:
-        return {}
+        logger.warning("Unknown tool dispatched: %s", tool)
+        return {"error": f"Unknown tool: {tool}", "tool": tool}
 
 
 def _gemini_route(message: str, history: list[ChatMessage]) -> dict:
@@ -1063,6 +1065,112 @@ def _extract_suggested_actions(tool: str, result: dict) -> list:
     return deduped[:5]  # Cap at 5 actions
 
 
+# ── ReAct-powered chat path ──────────────────────────────────────────────────
+
+def _chat_react(req: ChatRequest, provider, _persist, session_tag: str) -> ChatResponse:
+    """Multi-step ReAct investigation path — used when an LLM provider is available."""
+    from react import react_loop
+
+    logger.info("chat_react session=%s ssh=%s", session_tag, bool(req.ssh))
+
+    result = react_loop(
+        question=req.message,
+        history=req.history,
+        provider=provider,
+        dispatch_fn=_dispatch,
+    )
+
+    logger.info(
+        "chat_react_done session=%s iterations=%d tools=%s elapsed_ms=%.1f",
+        session_tag,
+        result.total_iterations,
+        ",".join(s.action for s in result.steps if s.action != "answer"),
+        result.total_duration_ms,
+    )
+
+    # Persist the react steps as metadata on the assistant message
+    steps_meta = [
+        {"thought": s.thought, "action": s.action, "params": s.action_params,
+         "duration_ms": round(s.duration_ms)}
+        for s in result.steps
+    ]
+
+    _persist("assistant", result.answer, tool_used=result.tool_used,
+             result={"react_steps": steps_meta, "tool_result": result.result},
+             error=result.error)
+
+    return ChatResponse(
+        reply=result.answer,
+        tool_used=result.tool_used,
+        result=result.result,
+        error=result.error,
+        timestamp=time.time(),
+        suggested_actions=result.suggested_actions,
+    )
+
+
+# ── Single-shot chat path (keyword fallback) ────────────────────────────────
+
+def _chat_single_shot(req: ChatRequest, _persist, session_tag: str) -> ChatResponse:
+    """Original single-shot route → dispatch → synthesize path.
+
+    Used when no LLM provider is available (keyword routing only).
+    """
+    routing = _keyword_route(req.message, req.history)
+    tool = routing.get("tool", "none")
+    params = routing.get("params", {})
+    explanation = routing.get("explanation", "")
+    logger.info(
+        "chat_single_shot session=%s tool=%s ssh=%s",
+        session_tag, tool, bool(req.ssh),
+    )
+
+    # No tool needed (greeting / general question)
+    if tool == "none":
+        _persist("assistant", explanation, tool_used="none")
+        return ChatResponse(
+            reply=explanation,
+            tool_used="none",
+            result=None,
+            timestamp=time.time(),
+        )
+
+    # Dispatch to tool
+    dispatch_started_at = time.perf_counter()
+    result = _dispatch(tool, params)
+    dispatch_elapsed_ms = (time.perf_counter() - dispatch_started_at) * 1000
+    logger.info(
+        "chat_dispatched session=%s tool=%s ssh=%s elapsed_ms=%.1f",
+        session_tag, tool, bool(req.ssh), dispatch_elapsed_ms,
+    )
+
+    # Check if the result itself is an error
+    if isinstance(result, dict) and (
+        ("error" in result and len(result) <= 2) or
+        (result.get("success") is False and result.get("error"))
+    ):
+        hint = result.get("suggestion", "")
+        err = result.get("error", "Unknown error")
+        reply = hint or f"I ran into an issue: {err}"
+        _persist("assistant", reply, tool_used=tool, result=result, error=err)
+        return ChatResponse(reply=reply, tool_used=tool, result=result, error=err, timestamp=time.time())
+
+    # Build reply — static summary (no LLM available for synthesis)
+    not_found_hint = result.pop("_not_found_hint", None) if isinstance(result, dict) else None
+    reply = not_found_hint or _friendly_summary(tool, result, explanation)
+
+    actions = _extract_suggested_actions(tool, result)
+
+    _persist("assistant", reply, tool_used=tool, result=result)
+    return ChatResponse(
+        reply=reply,
+        tool_used=tool,
+        result=result,
+        timestamp=time.time(),
+        suggested_actions=actions,
+    )
+
+
 # ── Chat endpoint ─────────────────────────────────────────────────────────────
 
 @router.post("/chat", response_model=ChatResponse)
@@ -1124,80 +1232,33 @@ def chat(req: ChatRequest):
                     error=str(e),
                 )
 
+        # ── Set up kubeconfig runner if session has a cluster connection ─────
+        elif sid and not req.ssh:
+            cluster_conn = db.get_cluster_connection(sid)
+            if cluster_conn and cluster_conn.get("context_name"):
+                from k8s.kubectl_runner import KubectlRunner, set_runner, runner_ctx
+                kube_runner = KubectlRunner(
+                    kubeconfig_path=cluster_conn.get("kubeconfig_path"),
+                    context=cluster_conn["context_name"],
+                )
+                ctx_token = set_runner(kube_runner)
+                logger.info(
+                    "Kubeconfig runner active: context=%s mode=%s",
+                    cluster_conn["context_name"],
+                    cluster_conn["mode"],
+                )
+
         # 1. Persist the user message
         _persist("user", req.message)
 
-        # 2. Route the message
-        routing = _gemini_route(req.message, req.history)
-        tool = routing.get("tool", "none")
-        params = routing.get("params", {})
-        explanation = routing.get("explanation", "")
-        router_error = routing.get("_router_error")
-        logger.info(
-            "chat_routed session=%s tool=%s ssh=%s",
-            session_tag,
-            tool,
-            bool(req.ssh),
-        )
+        # 2. Decide: ReAct (multi-step) or single-shot
+        provider = _llm_provider()
+        use_react = provider is not None and provider.enabled
 
-        # 3. No tool needed (greeting / general question)
-        if tool == "none":
-            _persist("assistant", explanation, tool_used="none")
-            return ChatResponse(
-                reply=explanation,
-                tool_used="none",
-                result=None,
-                timestamp=time.time(),
-            )
-
-        # 4. Dispatch to tool
-        dispatch_started_at = time.perf_counter()
-        result = _dispatch(tool, params)
-        dispatch_elapsed_ms = (time.perf_counter() - dispatch_started_at) * 1000
-        logger.info(
-            "chat_dispatched session=%s tool=%s ssh=%s elapsed_ms=%.1f",
-            session_tag,
-            tool,
-            bool(req.ssh),
-            dispatch_elapsed_ms,
-        )
-
-        # 5. Check if the result itself is an error (KubectlError caught in _dispatch)
-        if isinstance(result, dict) and (
-            ("error" in result and len(result) <= 2) or
-            (result.get("success") is False and result.get("error"))
-        ):
-            hint = result.get("suggestion", "")
-            err = result.get("error", "Unknown error")
-            reply = hint or f"I ran into an issue: {err}"
-            _persist("assistant", reply, tool_used=tool, result=result, error=err)
-            return ChatResponse(reply=reply, tool_used=tool, result=result, error=err, timestamp=time.time())
-
-        # 6. Build reply — try Gemini synthesis first, fall back to static summary
-        not_found_hint = result.pop("_not_found_hint", None) if isinstance(result, dict) else None
-        
-        synth_ans, synth_err = _synthesize_answer(req.message, tool, result)
-        
-        reply = (
-            not_found_hint
-            or synth_ans
-            or _friendly_summary(tool, result, explanation)
-        )
-
-        # 7. Extract suggested actions from AI analysis results
-        actions = _extract_suggested_actions(tool, result)
-
-        final_err = router_error or synth_err
-        
-        _persist("assistant", reply, tool_used=tool, result=result, error=final_err)
-        return ChatResponse(
-            reply=reply,
-            tool_used=tool,
-            result=result,
-            error=final_err,
-            timestamp=time.time(),
-            suggested_actions=actions,
-        )
+        if use_react:
+            return _chat_react(req, provider, _persist, session_tag)
+        else:
+            return _chat_single_shot(req, _persist, session_tag)
 
     except Exception as e:
         logger.exception("Chat error")
@@ -1227,7 +1288,9 @@ _SAFE_KUBECTL_PREFIXES = [
     "kubectl apply ",
     "kubectl scale ",
     "kubectl rollout restart ",
+    "kubectl rollout undo ",
     "kubectl delete pod ",
+    "kubectl delete pods ",
     "kubectl set image ",
     "kubectl set resources ",
     "kubectl label ",
@@ -1246,7 +1309,11 @@ def execute_command(req: ExecuteRequest):
     - Only kubectl commands are allowed (no shell injection).
     - Only specific kubectl sub-commands from a whitelist are permitted.
     - SSH credentials are supported for remote cluster execution.
+    - Cluster connections (kubeconfig/context) are used when active.
     """
+    import shlex
+    import subprocess
+
     cmd = req.command.strip()
     logger.info("execute_request command=%s ssh=%s", cmd[:80], bool(req.ssh))
 
@@ -1268,30 +1335,64 @@ def execute_command(req: ExecuteRequest):
 
     # Execute
     ssh_runner = None
-    ctx_token = None
     try:
+        # ── SSH execution path ────────────────────────────────────────────
         if req.ssh:
-            from k8s.kubectl_runner import SSHKubectlRunner, runner_ctx
-            ssh_runner = SSHKubectlRunner(
-                host=req.ssh.host,
-                username=req.ssh.username,
-                password=req.ssh.password or None,
-                key_path=req.ssh.key_path or None,
-                port=req.ssh.port,
-            )
-            ctx_token = runner_ctx.set(ssh_runner)
+            from k8s.ssh_runner import SSHKubectlRunner, SSHConnectionError
+            try:
+                ssh_runner = SSHKubectlRunner(
+                    host=req.ssh.host,
+                    username=req.ssh.username,
+                    password=req.ssh.password,
+                    port=req.ssh.port,
+                )
+                ssh_runner.connect()
+                # Strip "kubectl " prefix — SSHKubectlRunner.run() prepends it
+                args = shlex.split(cmd.replace("kubectl ", "", 1))
+                result = ssh_runner.run(args)
+                if result.success:
+                    return ExecuteResponse(success=True, output=result.stdout.strip())
+                else:
+                    return ExecuteResponse(success=False, error=result.stderr.strip())
+            except SSHConnectionError as e:
+                return ExecuteResponse(success=False, error=f"SSH connection failed: {e}")
 
-        from k8s.kubectl_runner import run_kubectl
-        result = run_kubectl(cmd.replace("kubectl ", "", 1))
-        return ExecuteResponse(success=True, output=result)
+        # ── Build local command with cluster connection flags ──────────────
+        # Parse the command into a list safely (no shell=True)
+        cmd_parts = shlex.split(cmd)
 
+        # If a session has a cluster connection, inject --kubeconfig / --context
+        # after "kubectl" so the command targets the right cluster.
+        if req.session_id:
+            cluster_conn = db.get_cluster_connection(req.session_id)
+            if cluster_conn:
+                extra_flags = []
+                kpath = cluster_conn.get("kubeconfig_path")
+                ctx = cluster_conn.get("context_name")
+                if kpath:
+                    extra_flags.extend(["--kubeconfig", kpath])
+                if ctx:
+                    extra_flags.extend(["--context", ctx])
+                if extra_flags:
+                    # Insert flags right after "kubectl"
+                    cmd_parts = [cmd_parts[0]] + extra_flags + cmd_parts[1:]
+
+        result = subprocess.run(
+            cmd_parts,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode == 0:
+            return ExecuteResponse(success=True, output=result.stdout.strip())
+        else:
+            return ExecuteResponse(success=False, error=result.stderr.strip() or f"Exit code {result.returncode}")
+
+    except subprocess.TimeoutExpired:
+        return ExecuteResponse(success=False, error="Command timed out after 30 seconds.")
     except Exception as e:
         logger.exception("Execute error")
         return ExecuteResponse(success=False, error=str(e))
-
     finally:
         if ssh_runner is not None:
             ssh_runner.close()
-        if ctx_token is not None:
-            from k8s.kubectl_runner import runner_ctx
-            runner_ctx.reset(ctx_token)

@@ -4,7 +4,7 @@ services:
       context: ..
       dockerfile: ui/backend/Dockerfile
     ports:
-      - "8000:8000"
+      - "8800:8800"
     volumes:
       - ../mcp:/app/mcp
       - ${KUBEASTRA_KUBECONFIG_FILE:-~/.kube/config}:/root/.kube/config:ro
@@ -22,9 +22,9 @@ services:
     build:
       context: ./frontend
     environment:
-      API_BASE_URL: http://backend:8000
+      API_BASE_URL: http://backend:8800
     ports:
-      - "3000:3000"
+      - "3300:3300"
     depends_on:
       - backend
     restart: unless-stopped

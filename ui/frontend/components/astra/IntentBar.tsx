@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 /** IntentBar — redesigned input bar with cluster context badge */
 
@@ -11,8 +11,12 @@ interface IntentBarProps {
   toolCount?: number;
 }
 
-export default function IntentBar({ onSend, listening, clusterName = "GKE-PROD", toolCount = 33 }: IntentBarProps) {
+export default function IntentBar({ onSend, listening, clusterName = "GKE-PROD", toolCount = 34 }: IntentBarProps) {
   const [val, setVal] = useState("");
+  // Render footer text only after mount to avoid SSR/client hydration mismatch
+  // (toolCount and clusterName depend on client-side state)
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const submit = () => {
     if (!val.trim()) return;
     onSend(val.trim());
@@ -65,11 +69,11 @@ export default function IntentBar({ onSend, listening, clusterName = "GKE-PROD",
         {/* Listening indicator */}
         {listening && (
           <div style={{ padding: '0 10px', display: 'flex', gap: 3, alignItems: 'center' }}>
-            {[0,1,2].map(d => (
+            {[0, 1, 2].map(d => (
               <div key={d} style={{
                 width: 4, height: 4, borderRadius: '50%', background: 'var(--accent)',
-                animation: `dotBounce 1.2s ${d*0.2}s ease-in-out infinite`,
-              }}/>
+                animation: `dotBounce 1.2s ${d * 0.2}s ease-in-out infinite`,
+              }} />
             ))}
           </div>
         )}
@@ -85,14 +89,16 @@ export default function IntentBar({ onSend, listening, clusterName = "GKE-PROD",
         }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <line x1="22" y1="2" x2="11" y2="13"/>
-            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            <line x1="22" y1="2" x2="11" y2="13" />
+            <polygon points="22 2 15 22 11 13 2 9 22 2" />
           </svg>
         </button>
       </div>
-      <div style={{ marginTop: 6, textAlign: 'center', fontSize: 9, color: 'var(--ink-4)', fontFamily: 'var(--mono)' }}>
-        Astra has access to {toolCount} investigative tools · {clusterName.toLowerCase()}
-      </div>
+      {mounted && (
+        <div style={{ marginTop: 6, textAlign: 'center', fontSize: 9, color: 'var(--ink-4)', fontFamily: 'var(--mono)' }}>
+          Astra has access to {toolCount} investigative tools · {clusterName.toLowerCase()}
+        </div>
+      )}
     </div>
   );
 }

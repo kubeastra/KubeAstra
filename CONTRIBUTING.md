@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for your interest in contributing! Whether you're fixing a bug, adding a new Kubernetes investigation tool, improving documentation, or proposing a feature — your contributions help the entire DevOps community debug smarter.
+Thanks for your interest in contributing to **Kubeastra**! Whether you're fixing a bug, adding a new Kubernetes investigation tool, improving the ReAct agent's reasoning, or building new UI components — your contributions help the entire DevOps community debug smarter.
 
 ---
 
@@ -94,24 +94,32 @@ Understanding where things live will help you contribute to the right place:
 kubeastra/
 ├── mcp/              # Core engine — all K8s tools and AI logic
 │   ├── k8s/
-│   │   ├── wrappers.py          # High-level kubectl workflows (the main API)
+│   │   ├── wrappers.py          # High-level kubectl workflows (32+ tools)
 │   │   ├── kubectl_runner.py    # Safe local kubectl execution
 │   │   ├── ssh_runner.py        # SSH-backed kubectl for remote nodes
 │   │   ├── validators.py        # Safety checks (namespace, name, selectors)
 │   │   └── parsers.py           # Structured output parsing
 │   ├── ai_tools/                # AI analysis, fix playbooks, runbooks, reports
-│   ├── services/                # LLM providers, Weaviate RAG, embeddings, error parsing
+│   ├── services/                # LLM providers, Weaviate RAG, embeddings
+│   │   └── llm_service.py       # LLM prompts for investigation analysis
 │   ├── mcp_server/              # MCP protocol server (stdio + HTTP transports)
 │   ├── http_mcp/                # HTTP MCP transport client + server
 │   └── config/settings.py       # Pydantic settings
 ├── ui/
-│   ├── backend/                 # FastAPI — chat routing + tool orchestration
-│   │   ├── main.py              # App entrypoint
-│   │   ├── routers/chat.py      # Main chat flow + intent classification
-│   │   ├── routers/sessions.py  # Session history + SSH target APIs
-│   │   └── db.py                # SQLite persistence
+│   ├── backend/                 # FastAPI — chat routing + ReAct orchestration
+│   │   ├── main.py              # App entrypoint, middleware, lifespan
+│   │   ├── react.py             # ReAct loop engine (multi-step tool chaining)
+│   │   ├── db.py                # SQLite persistence (history, connections, SSH)
+│   │   └── routers/
+│   │       ├── chat.py          # Intent router + ReAct dispatch + /execute endpoint
+│   │       ├── cluster.py       # Cluster connection lifecycle (4 modes)
+│   │       ├── sessions.py      # Session history + SSH target + post-mortem APIs
+│   │       └── health.py        # Health endpoints
 │   └── frontend/                # Next.js chat interface
-├── helm/kubeastra/   # Helm chart
+│       ├── app/chat/            # Chat routes (incl. shareable /chat/:sessionId)
+│       ├── components/astra/    # ResultCard, RootCauseCard, IntentBar, etc.
+│       └── lib/api.ts           # Typed API client
+├── helm/kubeastra/              # Helm chart
 ├── demo/                        # kind config + broken workloads for `make demo`
 └── docs/                        # Architecture, deployment guide, runbooks
 ```
@@ -123,8 +131,14 @@ kubeastra/
 | Add a new kubectl investigation tool | `mcp/k8s/wrappers.py` + register in `mcp_server/tools.py` |
 | Improve AI analysis or prompts | `mcp/ai_tools/` + `mcp/services/llm_service.py` |
 | Add a new LLM provider | `mcp/services/llm/` (see `base.py` for the interface) |
-| Fix chat routing or intent classification | `ui/backend/routers/chat.py` |
+| Fix chat routing or intent classification | `ui/backend/routers/chat.py` (the `ROUTER_SYSTEM` prompt) |
+| Modify the ReAct loop behavior | `ui/backend/react.py` (tool descriptions, prompts, observation truncation, timeout) |
+| Add a tool the ReAct agent can use | `ui/backend/react.py` → `TOOL_DESCRIPTIONS` dict + dispatcher |
+| Change fix command extraction | `ui/backend/react.py` → `_EXECUTABLE_PREFIXES` + `_extract_actions_from_steps` |
+| Add a new cluster connection mode | `ui/backend/routers/cluster.py` + frontend `ClusterConnect` component |
 | Update the web interface | `ui/frontend/` (Next.js + TypeScript) |
+| Build new result card types | `ui/frontend/components/astra/ResultCard.tsx` |
+| Fix shareable session routing | `ui/frontend/app/chat/[sessionId]/page.tsx` + `page-client.tsx` |
 | Modify the Helm deployment | `helm/kubeastra/` |
 | Add broken workloads to the demo | `demo/broken-workloads/` |
 
@@ -132,29 +146,38 @@ kubeastra/
 
 ## Adding a New Kubernetes Tool
 
-This is the most common type of contribution. Here's the pattern:
+This is the most common type of contribution. Here's the full checklist:
 
-1. Add the wrapper function in `mcp/k8s/wrappers.py`
-2. Use `KubectlRunner` (or `get_runner()` for SSH transparency) for all cluster interactions
-3. Add a Pydantic input schema in `mcp/mcp_server/schemas.py`
-4. Register the tool in `mcp/mcp_server/tools.py`
-5. Teach the chat router about it in `ui/backend/routers/chat.py` (the `ROUTER_SYSTEM` prompt)
-6. Add tests in `mcp/tests/`
-7. Update the README tool count if applicable
+1. **Add the wrapper function** in `mcp/k8s/wrappers.py` — use `get_runner()` for SSH transparency
+2. **Add a Pydantic input schema** in `mcp/mcp_server/schemas.py`
+3. **Register in the MCP server** in `mcp/mcp_server/tools.py`
+4. **Add to the ReAct agent** in `ui/backend/react.py`:
+   - Add to `TOOL_DESCRIPTIONS` dict (one-line description the LLM sees)
+   - Add dispatch logic in the tool dispatcher function
+   - Optionally add an observation truncation handler in `_truncate_observation`
+5. **Add to the keyword router** in `ui/backend/routers/chat.py` (`ROUTER_SYSTEM` prompt) for the direct-tool fallback path
+6. **Add tests** in `mcp/tests/`
+7. **Update the README** tool count if applicable
 
 ```python
 # Example: a new tool to check ingress health
-async def check_ingress_health(namespace: str = "default") -> dict:
+def check_ingress_health(namespace: str = "default") -> dict:
     """Check the health and configuration of ingress resources."""
     runner = get_runner()
-    result = await runner.run_json(["get", "ingress", "-n", namespace, "-o", "json"])
+    result = runner.run(["get", "ingress", "-n", namespace, "-o", "json"])
+    result.raise_for_status()
+    data = json.loads(result.stdout)
     # ... parse and return structured results
     return {"ingresses": parsed, "issues": issues_found}
 ```
 
+**If the tool returns large results** (like `get_pods` for all namespaces), add a truncation handler in `react.py` → `_truncate_observation()` that extracts the essential fields. This keeps the ReAct context window manageable.
+
 **Safety rules for write operations:**
 - Write tools (delete/scale/restart/patch) must require an explicit `confirm: bool = False` argument
 - Write tools must also be gated by `settings.enable_recovery_operations`
+- Add the command prefix to `_EXECUTABLE_PREFIXES` in `react.py` so it appears in fix suggestions
+- Add the prefix to `_SAFE_KUBECTL_PREFIXES` in `routers/chat.py` so `/api/chat/execute` accepts it
 - Every command must be audit-logged (the runner handles this automatically)
 
 ---
@@ -186,10 +209,13 @@ Before submitting your PR, make sure:
 
 - [ ] Code follows the project's style guidelines
 - [ ] Tests pass locally (`pytest` for Python, `npm test` for frontend)
-- [ ] New tools are registered in both `mcp_server/tools.py` and the chat router
+- [ ] Python files compile cleanly: `python3 -m py_compile <file>`
+- [ ] TypeScript compiles cleanly: `npx tsc --noEmit` (from `ui/frontend/`)
+- [ ] New tools are registered in `mcp_server/tools.py`, `react.py` (TOOL_DESCRIPTIONS), and `routers/chat.py` (keyword router)
 - [ ] No hardcoded credentials, internal URLs, or sensitive config
 - [ ] PR description explains what changed and why
 - [ ] Read-only safety is preserved (write operations require explicit `confirm=True`)
+- [ ] New write command prefixes added to both `_EXECUTABLE_PREFIXES` (react.py) and `_SAFE_KUBECTL_PREFIXES` (chat.py)
 - [ ] `.env.example` is updated if you added new config variables
 
 ---
@@ -198,11 +224,13 @@ Before submitting your PR, make sure:
 
 New to the project? Look for issues labeled `good-first-issue`. These are scoped, well-defined tasks that are a great way to get familiar with the codebase. Examples:
 
-- Adding a new kubectl wrapper tool
-- Improving error messages in `ai_tools/analyze.py`
-- Expanding test coverage in `mcp/tests/`
+- Adding a new kubectl wrapper tool (see pattern above)
+- Building a new `ResultCard` variant for a resource type (e.g. ingress, configmap)
+- Improving ReAct observation truncation for a specific tool in `react.py`
 - Adding broken workload examples to `demo/broken-workloads/`
-- Documentation improvements
+- Expanding test coverage in `mcp/tests/`
+- Improving error messages in `ai_tools/analyze.py`
+- Adding a new cluster connection mode (e.g. cloud provider SSO)
 
 ---
 

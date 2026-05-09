@@ -21,6 +21,10 @@ interface RootCauseCardProps {
   confidence?: number;
   onReviewExecute?: () => void;
   suggestedActions?: Array<{ label: string; command: string; confirm?: boolean }>;
+  /** Manual fix steps from AI analysis (shown when no automated commands) */
+  manualSteps?: string[];
+  /** Prevention recommendation */
+  prevention?: string;
 }
 
 const SEVERITY_COLORS = {
@@ -40,6 +44,8 @@ export default function RootCauseCard({
   confidence,
   onReviewExecute,
   suggestedActions = [],
+  manualSteps = [],
+  prevention = "",
 }: RootCauseCardProps) {
   const [evidenceOpen, setEvidenceOpen] = useState(false);
   const sev = SEVERITY_COLORS[severity];
@@ -176,8 +182,8 @@ export default function RootCauseCard({
           </div>
         )}
 
-        {/* CTA */}
-        {(onReviewExecute || suggestedActions.length > 0) && (
+        {/* CTA — either executable fix button or manual steps */}
+        {onReviewExecute ? (
           <button
             onClick={onReviewExecute}
             style={{
@@ -209,7 +215,43 @@ export default function RootCauseCard({
               <path d="M5 12h14M12 5l7 7-7 7"/>
             </svg>
           </button>
-        )}
+        ) : manualSteps.length > 0 ? (
+          <div style={{
+            background: 'var(--paper-2)', border: '1px solid var(--rule)',
+            borderRadius: 8, padding: '12px 14px',
+          }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8,
+            }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+              </svg>
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', letterSpacing: '0.04em' }}>
+                Manual Steps Required
+              </span>
+            </div>
+            <ol style={{
+              margin: 0, paddingLeft: 18,
+              fontSize: 12, color: 'var(--ink-2)', lineHeight: 1.7,
+            }}>
+              {manualSteps.map((step, i) => (
+                <li key={i} style={{ marginBottom: 4 }}>{step}</li>
+              ))}
+            </ol>
+            {prevention && (
+              <div style={{
+                marginTop: 10, paddingTop: 8, borderTop: '1px solid var(--rule)',
+                fontSize: 11, color: 'var(--ink-3)', lineHeight: 1.5,
+              }}>
+                <strong style={{ color: 'var(--ink-2)' }}>Prevention:</strong> {prevention}
+              </div>
+            )}
+          </div>
+        ) : null}
       </div>
     </div>
   );

@@ -24,8 +24,8 @@ help:
 up: cluster kubeconfig workloads ui
 	@echo ""
 	@echo "Demo ready."
-	@echo "  Web UI:     http://localhost:3000"
-	@echo "  Backend:    http://localhost:8000"
+	@echo "  Web UI:     http://localhost:3300"
+	@echo "  Backend:    http://localhost:8800"
 	@echo "  Namespace:  demo"
 	@echo ""
 	@echo "Try asking: 'what's broken in the demo namespace?'"

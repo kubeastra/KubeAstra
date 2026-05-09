@@ -59,13 +59,13 @@ echo "Start the app (two terminals):"
 echo ""
 echo "  Terminal 1 — Backend:"
 echo "    cd $SCRIPT_DIR/backend"
-echo "    MCP_PATH=$MCP_DIR PYTHONPATH=$MCP_DIR venv/bin/uvicorn main:app --reload --port 8000"
+echo "    MCP_PATH=$MCP_DIR PYTHONPATH=$MCP_DIR venv/bin/uvicorn main:app --reload --port 8800"
 echo ""
 echo "  Terminal 2 — Frontend:"
 echo "    cd $SCRIPT_DIR/frontend"
-echo "    API_BASE_URL=http://localhost:8000 npm run dev"
+echo "    API_BASE_URL=http://localhost:8800 npm run dev -- -p 3300"
 echo ""
-echo "  Then open: http://localhost:3000"
+echo "  Then open: http://localhost:3300"
 echo ""
 echo "  Or run both at once:"
 echo "    bash $SCRIPT_DIR/start.sh"
@@ -81,18 +81,18 @@ echo "Starting Kubeastra Web UI..."
 
 # Start backend
 cd "\$SCRIPT_DIR/backend"
-MCP_PATH="\$MCP_DIR" PYTHONPATH="\$MCP_DIR" venv/bin/uvicorn main:app --port 8000 &
+MCP_PATH="\$MCP_DIR" PYTHONPATH="\$MCP_DIR" venv/bin/uvicorn main:app --port 8800 &
 BACKEND_PID=\$!
-echo "Backend PID: \$BACKEND_PID (port 8000)"
+echo "Backend PID: \$BACKEND_PID (port 8800)"
 
 # Start frontend
 cd "\$SCRIPT_DIR/frontend"
-API_BASE_URL=http://localhost:8000 npm run dev &
+API_BASE_URL=http://localhost:8800 npm run dev -- -p 3300 &
 FRONTEND_PID=\$!
-echo "Frontend PID: \$FRONTEND_PID (port 3000)"
+echo "Frontend PID: \$FRONTEND_PID (port 3300)"
 
 echo ""
-echo "Open: http://localhost:3000"
+echo "Open: http://localhost:3300"
 echo "Press Ctrl+C to stop both services"
 
 trap "kill \$BACKEND_PID \$FRONTEND_PID 2>/dev/null; exit" INT TERM

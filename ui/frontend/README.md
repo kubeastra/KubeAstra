@@ -2,7 +2,7 @@
 
 Next.js frontend for the Kubeastra Web UI.
 
-This app provides the browser-based chat interface and now includes a **server-side API proxy** so browser requests go to same-origin `/api/*` routes on port `3000` instead of talking directly to the backend on port `8000`.
+This app provides the browser-based chat interface and now includes a **server-side API proxy** so browser requests go to same-origin `/api/*` routes on port `3300` instead of talking directly to the backend on port `8800`.
 
 ## What Changed
 
@@ -16,10 +16,10 @@ This app provides the browser-based chat interface and now includes a **server-s
 
 ```text
 Browser
-  -> http://localhost:3000/api/...
+  -> http://localhost:3300/api/...
   -> Next.js route handler (app/api/[...path]/route.ts)
   -> API_BASE_URL + /api/...
-  -> FastAPI backend on port 8000
+  -> FastAPI backend on port 8800
 ```
 
 ## Local Development
@@ -28,18 +28,18 @@ From the repo root:
 
 ```bash
 cd ui/frontend
-API_BASE_URL=http://localhost:8000 npm run dev
+API_BASE_URL=http://localhost:8800 npm run dev
 ```
 
 Open:
 
-- `http://localhost:3000/chat`
+- `http://localhost:3300/chat`
 
 The browser will call:
 
-- `http://localhost:3000/api/chat`
-- `http://localhost:3000/api/sessions/...`
-- `http://localhost:3000/api/health`
+- `http://localhost:3300/api/chat`
+- `http://localhost:3300/api/sessions/...`
+- `http://localhost:3300/api/health`
 
 The Next.js server then proxies those requests to the backend defined by `API_BASE_URL`.
 
@@ -47,7 +47,7 @@ The Next.js server then proxies those requests to the backend defined by `API_BA
 
 ```bash
 # Server-side proxy target
-API_BASE_URL=http://localhost:8000
+API_BASE_URL=http://localhost:8800
 ```
 
 Notes:

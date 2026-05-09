@@ -175,5 +175,5 @@ Environment variable equivalents: `MCP_HTTP_HOST`, `MCP_HTTP_PORT`, `MCP_HTTP_PA
 
 - `make run-http` binds to `127.0.0.1` by default — safe for local testing.
 - `make run-http-external` binds to `0.0.0.0` — for team/shared deployments, add TLS and a reverse proxy (nginx/Traefik) in front.
-- The HTTP transport runs independently from the `ui` web backend (port 8000). They don't conflict.
+- The HTTP transport runs independently from the `ui` web backend (port 8800). They don't conflict.
 - Session state is maintained by `StreamableHTTPSessionManager` — each client gets a stable session across multiple requests.

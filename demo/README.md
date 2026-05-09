@@ -8,7 +8,7 @@ Spin up a local Kubernetes cluster pre-seeded with realistic broken workloads so
 
 - A two-node [kind](https://kind.sigs.k8s.io/) cluster (`kubeastra-demo`)
 - A `demo` namespace containing six intentionally-broken workloads covering the most common Kubernetes failure modes
-- The web UI running locally at http://localhost:3000, already pointed at the demo cluster
+- The web UI running locally at http://localhost:3300, already pointed at the demo cluster
 
 ---
 
@@ -46,7 +46,7 @@ This will:
 3. Wait for the broken states to manifest
 4. Start the web UI (backend + frontend) via docker-compose
 
-Open http://localhost:3000 and try:
+Open http://localhost:3300 and try:
 
 - *"what's broken in the demo namespace?"*
 - *"why is payment-service crashing?"*

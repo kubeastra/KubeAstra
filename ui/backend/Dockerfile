@@ -53,9 +53,9 @@ ENV KUBECTL_TIMEOUT_SECONDS=15
 ENV MAX_LOG_TAIL_LINES=200
 ENV ENABLE_RECOVERY_OPERATIONS=false
 
-# Port 8000 — FastAPI chat backend (web UI)
+# Port 8800 — FastAPI chat backend (web UI)
 # Port 8001 — HTTP MCP server (Cursor / Claude Desktop / any MCP client)
-EXPOSE 8000 8001
+EXPOSE 8800 8001
 
 # Starts both services; set MCP_AUTH_TOKEN env var to protect port 8001
 CMD ["/app/entrypoint.sh"]

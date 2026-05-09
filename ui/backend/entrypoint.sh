@@ -1,7 +1,7 @@
 #!/bin/bash
 # ── Entrypoint — starts both the chat backend and the HTTP MCP server ─────────
 #
-# Port 8000 — FastAPI chat backend  (for the web UI)
+# Port 8800 — FastAPI chat backend  (for the web UI)
 # Port 8001 — HTTP MCP server       (for Cursor / Claude Desktop / any MCP client)
 #
 # Both share the same mcp tools, kubeconfig, and env vars.
@@ -10,7 +10,7 @@
 set -e
 
 echo "[entrypoint] Starting Kubeastra"
-echo "[entrypoint]   Chat backend  → :8000"
+echo "[entrypoint]   Chat backend  → :8800"
 echo "[entrypoint]   HTTP MCP      → :8001 (path: /mcp/)"
 if [ -n "$MCP_AUTH_TOKEN" ]; then
   echo "[entrypoint]   MCP auth      → bearer token enabled"
@@ -19,7 +19,7 @@ else
 fi
 
 # ── Chat backend (FastAPI) ────────────────────────────────────────────────────
-uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1 &
+uvicorn main:app --host 0.0.0.0 --port 8800 --workers 1 &
 BACKEND_PID=$!
 
 # ── HTTP MCP server ───────────────────────────────────────────────────────────

@@ -372,6 +372,85 @@ def list_services(namespace: str) -> Dict[str, Any]:
     return {"namespace": namespace, "service_count": len(services), "services": services}
 
 
+def _parse_pod_text_output(text: str) -> List[Dict[str, Any]]:
+    """Parse tabular output of ``kubectl get pods [-A]`` into pod-summary dicts.
+
+    The default (non-JSON) kubectl output looks like::
+
+        NAMESPACE     NAME              READY   STATUS    RESTARTS      AGE
+        argocd        my-pod-abc123     1/1     Running   0             5d
+
+    This is ~100 bytes/pod vs ~2 KB in JSON, making it safe for large clusters.
+    """
+    lines = text.splitlines()
+    if not lines:
+        return []
+
+    # Detect column start positions from the header row.
+    # We search for known column names in order and record the byte offset
+    # where each one starts.  This handles variable-width columns correctly.
+    header = lines[0]
+    KNOWN_COLS = ["NAMESPACE", "NAME", "READY", "STATUS", "RESTARTS", "AGE"]
+    col_starts: list[tuple[str, int]] = []
+    search_from = 0
+    for col in KNOWN_COLS:
+        idx = header.find(col, search_from)
+        if idx >= 0:
+            col_starts.append((col, idx))
+            search_from = idx + len(col)
+
+    if len(col_starts) < 3:
+        # Header doesn't match expected format — can't parse
+        logger.warning("Unexpected kubectl pod output format, cannot parse text output")
+        return []
+
+    pods: list = []
+    for line in lines[1:]:
+        if not line.strip():
+            continue
+
+        # Extract each column value using start/end offsets
+        values: dict = {}
+        for i, (col_name, start) in enumerate(col_starts):
+            end = col_starts[i + 1][1] if i + 1 < len(col_starts) else len(line)
+            values[col_name] = line[start:end].strip() if start < len(line) else ""
+
+        name = values.get("NAME", "")
+        if not name:
+            continue
+
+        # Restarts may look like "5 (3d ago)" in newer kubectl versions
+        restarts = 0
+        restarts_raw = values.get("RESTARTS", "")
+        if restarts_raw:
+            m = re.match(r"(\d+)", restarts_raw)
+            if m:
+                restarts = int(m.group(1))
+
+        status = values.get("STATUS", "Unknown")
+        pods.append({
+            "name": name,
+            "namespace": values.get("NAMESPACE", ""),
+            "phase": status if status in ("Running", "Pending", "Succeeded", "Failed", "Unknown") else "Running",
+            "status": status,
+            "status_reason": "",
+            "ready": values.get("READY", "0/0"),
+            "restarts": restarts,
+            "restart_count": restarts,
+            "node_name": "",
+            "image": "",
+            "images": [],
+            "pod_ip": "",
+            "creation_timestamp": "",
+            "labels": {},
+            "container_states": [],
+            "conditions": {},
+            "age": values.get("AGE", ""),
+        })
+
+    return pods
+
+
 def get_pods(
     namespace: str,
     label_selector: Optional[str] = None,
@@ -394,17 +473,25 @@ def get_pods(
     if not all_namespaces:
         namespace = validate_namespace(namespace)
 
-    args = ["get", "pods", "-o", "json"]
-
-    if all_namespaces:
-        args.append("--all-namespaces")
-
     if label_selector:
         label_selector = validate_label_selector(label_selector)
-        args.extend(["-l", label_selector])
 
-    result = get_runner().run_json(args, namespace=None if all_namespaces else namespace)
-    pods = parse_pod_list(result)
+    # ── For all-namespaces queries, use text format (much lighter) ───────
+    # JSON output can exceed 10 MB on large clusters and fail to parse.
+    # Text format is ~100 bytes/pod vs ~2 KB/pod in JSON.
+    if all_namespaces:
+        args = ["get", "pods", "--all-namespaces"]
+        if label_selector:
+            args.extend(["-l", label_selector])
+        result = get_runner().run(args)
+        result.raise_for_status()
+        pods = _parse_pod_text_output(result.stdout)
+    else:
+        args = ["get", "pods", "-o", "json"]
+        if label_selector:
+            args.extend(["-l", label_selector])
+        json_result = get_runner().run_json(args, namespace=namespace)
+        pods = parse_pod_list(json_result)
 
     # Pre-compute health summary so the AI synthesis always sees problems
     # even when the full pod list is too large for the LLM prompt window.

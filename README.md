@@ -41,19 +41,78 @@ This tool handles that investigation loop for you:
 
 ## Key Features
 
+### 🔗 Connect Any Cluster in Seconds
+
+Four ways to connect — pick what fits your setup:
+
+| Mode | How it works | Best for |
+|---|---|---|
+| **Auto-detect** | Reads your local `~/.kube/config` and lists available contexts | Local dev, minikube, kind, Docker Desktop |
+| **Kubeconfig upload** | Paste or upload a kubeconfig file, pick a context | Remote clusters, CI-generated configs |
+| **SSH** | Enter host/user/password — kubectl runs on the remote node over SSH | Air-gapped clusters, bare-metal kubeadm |
+| **In-cluster** | Mounts the ServiceAccount token automatically | When deployed inside the cluster via Helm |
+
+Switch between clusters without restarting. Each session tracks its own connection.
+
 ### 🔍 34 Built-in Kubernetes Tools
 
 **Live cluster tools (28)** — pod/deployment/service inspection, event streams, multi-namespace discovery, rollout status, kubeconfig context switching, log retrieval with previous-container support, resource-graph topology, deployment-level investigation, namespace-wide health analysis, and safe write operations (delete, scale, restart, patch — all gated behind `confirm=true`).
 
 **AI analysis tools (6)** — error analysis with RAG-backed similarity search, curated fix playbooks for 11 error categories, AI-generated runbooks, cluster health reports, post-incident summarization.
 
+### 🤖 Agentic ReAct Investigation
+
+Unlike single-shot "ask → answer" tools, Kubeastra runs a **multi-step ReAct loop** — reasoning through complex failures autonomously:
+
+```
+You: Why is checkout-service down?
+
+Agent reasoning:
+  ✓ find_workload — searching across all namespaces
+  ✓ investigate_pod — found CrashLoopBackOff in checkout-svc-7d4f9b
+  ✓ get_pods — checking Redis dependency → ConnectionRefused
+  ✓ describe_pod — Redis pod Pending: unbound PVC
+
+Root cause: PersistentVolumeClaim redis-data is unbound,
+preventing Redis from starting, which cascades to checkout-service.
+```
+
+Each reasoning step is visible in real-time via the Investigation Trail — no black box. The agent answers listing questions in a single step and complex debugging in 2-3 steps, with a 90-second wall-clock safety timeout.
+
+### 🔧 One-Click Fix Execution
+
+When the AI identifies a fix, you get a **Review & Execute** button with the exact commands:
+
+- Only **write operations** are suggested (delete pod, rollout restart, scale, patch) — never diagnostic commands you've already seen
+- **Slide-to-confirm** safety gate before any command runs
+- Button disappears after execution — no accidental re-runs
+- When no safe automated fix exists (e.g., "update your Helm values"), the card shows **Manual Steps Required** with numbered instructions instead
+
+### 👥 Collaborative Sessions
+
+- **Shareable URLs** — click Share to copy a session link (`/chat/:sessionId`). Anyone with the URL sees the full investigation history — including the root-cause card, fix commands, and evidence.
+- **Investigation timeline** — every ReAct step (tool call, thought, observation) renders as a real-time timeline, not simulated placeholders.
+- **Session not found** — invalid or expired shared links show a clear message instead of a blank page.
+- **One-click post-mortems** — generate a structured post-mortem (summary, timeline, root cause, impact, resolution, action items) from any investigation session via the API.
+
+### 🗺️ Visual Debugging Canvas
+
+The resource graph is an **interactive investigation surface**, not just a topology diagram:
+
+- **Health-aware nodes** — pods, services, deployments, and ingresses colored by health status with pulsing red glow for degraded resources
+- **Click-to-inspect** — click any node to see full metadata in a detail panel
+- **Hover tooltips** — quick metadata preview (phase, restarts, IP, ports, replicas)
+- **Edge labels** — see relationships at a glance: "routes →", "selects →", "manages →"
+- **MiniMap + zoom/pan** — navigate large cluster topologies with ease
+
 ### 💬 Two Ways to Use It
 
 | Web UI | IDE / MCP Integration |
 |---|---|
 | Chat-based Next.js interface for team-wide troubleshooting | Direct integration into Cursor, Claude Desktop, or any MCP client |
-| Shareable sessions with persistent chat history (SQLite) | Debug without leaving your editor |
-| SSH panel to attach to any remote kubeadm cluster | 34 tools available via stdio or HTTP MCP transport |
+| Connect any cluster (auto-detect, kubeconfig upload, SSH) | Debug without leaving your editor |
+| Shareable session URLs with persistent chat history (SQLite) | 34 tools available via stdio or HTTP MCP transport |
+| Visual resource graph with click-to-inspect | Same ReAct agent powers both surfaces |
 
 ### 🔌 Pluggable LLM Providers
 
@@ -62,10 +121,12 @@ Pick your LLM — **Google Gemini** (default, free tier available) or **Ollama**
 ### 🛡️ Safety First
 
 - **Read-only by default** — all `kubectl` commands are validated before execution
-- **Explicit confirmation required** for write operations (`delete`, `scale`, `restart`, `patch`)
+- **Explicit confirmation required** for write operations (`delete`, `scale`, `restart`, `patch`) via slide-to-confirm
 - **Full audit logging** of every command executed
 - **RBAC-aware** — respects your existing Kubernetes permissions
 - **Input validation** — namespace/name/label-selector safety checks prevent injection
+- **Session isolation** — temp kubeconfig files are scoped per session with `0600` permissions, sanitized session IDs prevent path traversal, cryptographic session tokens prevent URL guessing
+- **Command allowlist** — the execute endpoint only accepts specific kubectl write prefixes; everything else is rejected
 
 ### 🚀 Deploy Anywhere
 
@@ -90,7 +151,7 @@ make demo
 
 Spins up a local kind cluster with pre-broken workloads (CrashLoop, OOM, ImagePull, stuck PVC) and launches the web UI.
 
-Open http://localhost:3000 and ask *"what's broken in the demo namespace?"*.
+Open http://localhost:3300 and ask *"what's broken in the demo namespace?"*.
 
 > The demo generates its own kubeconfig automatically — it does not touch your host's current kubectl context. See [`demo/README.md`](demo/README.md) for full prerequisites and troubleshooting.
 
@@ -107,7 +168,7 @@ cp ui/backend/.env.example ui/backend/.env
 cd ui
 docker compose up --build
 
-# 3. Open http://localhost:3000
+# 3. Open http://localhost:3300
 ```
 
 ### Option 3: Use via MCP (Cursor / Claude Desktop)
@@ -140,29 +201,56 @@ helm upgrade --install kubeastra helm/kubeastra \
 
 ## How It Works
 
-1. **You ask a question** — *"Why are pods in checkout-service not starting?"*
-2. **Intent classification** — LLM (Gemini or local Ollama) picks the right tool + extracts params. Falls back to a 30+ pattern regex router if no LLM key is set.
-3. **Auto-discovery** — if you don't specify a namespace, `find_workload` searches across all namespaces.
-4. **Live investigation** — executes read-only `kubectl` commands against your cluster (or over SSH if you've connected a remote node).
-5. **AI synthesis** — instead of dumping raw JSON, returns a clear 2–3 sentence diagnosis with root cause and next steps.
-6. **Persistence** — every message, tool call, and result saved to SQLite so you can pick up where you left off.
+1. **Connect your cluster** — auto-detect your local kubeconfig, upload one, or enter SSH credentials. The connection is scoped to your session.
+2. **Ask a question** — *"Why are pods in checkout-service not starting?"*
+3. **ReAct investigation** — the LLM reasons step-by-step: picks a tool → executes it → observes the result → decides the next action. This continues autonomously (up to 6 iterations, 90-second timeout) until it has enough context to answer. Falls back to a keyword router if no LLM key is set.
+4. **Auto-discovery** — if you don't specify a namespace, `find_workload` searches across all namespaces. Large clusters (thousands of pods) are handled efficiently via text-format parsing instead of JSON.
+5. **Live investigation** — executes read-only `kubectl` commands against your cluster. Cluster connection flags are injected per-session automatically.
+6. **AI synthesis** — returns a severity-rated root-cause card with metrics, evidence, and either one-click fix commands or manual steps.
+7. **Persistence** — every message, tool call, and result saved to SQLite so you can pick up where you left off.
+8. **Share and collaborate** — share the session URL with your team. They see the full investigation including the root-cause card, fix commands, and evidence.
 
 ---
 
-## Example Interaction
+## Example Interactions
 
+**Quick listing** — answered in one tool call, ~5 seconds:
 ```
-You: Why is my-app crashing in the dev namespace?
-Assistant: my-app-7d4f9b-xkj2p is in CrashLoopBackOff. The container is failing
-with exit code 1 during startup — the application logs show a connection
-refused error to redis-master:6379. The Redis pod in this namespace is in
-Pending state due to an unbound PVC.
+You: what pods are in the jenkins namespace?
+Astra: Here are the pods in the jenkins namespace.
+       ┌─────────────────────────┬──────────┬───────┬──────────┐
+       │ Name                    │ Status   │ Ready │ Restarts │
+       ├─────────────────────────┼──────────┼───────┼──────────┤
+       │ jenkins-0               │ Running  │ 2/2   │ 1        │
+       │ avatar-agent-1s7k7      │ Pending  │ 0/0   │ 0        │
+       └─────────────────────────┴──────────┴───────┴──────────┘
+```
 
-Suggested fix:
-  kubectl get pvc -n dev                   # Check PVC status
-  kubectl describe pvc redis-data -n dev   # Check binding issue
+**Deep investigation** — multi-step ReAct, ~15 seconds:
+```
+You: why is mongo arbiter pod in crashloop?
 
-Would you like me to generate a runbook for Redis PVC recovery?
+Investigation Trail: 3/3 tools
+  ✓ kubectl → pod status retrieved
+  ✓ events  → events scanned
+  ✓ ai      → analysis complete
+
+┌─ CrashLoopBackOff ─────────────────────── CRITICAL ─┐
+│ mongodb-arbiter-0 · infrastructure                   │
+│                                                      │
+│ The MongoDB arbiter pod is failing to start because  │
+│ the designated primary host (mongodb-0) is not       │
+│ available. The arbiter's setup process times out.    │
+│                                                      │
+│ ┌──────────┐ ┌──────────────────┐ ┌───────┐        │
+│ │   360    │ │ CrashLoopBackOff │ │ False │        │
+│ │ RESTARTS │ │      STATUS      │ │ READY │        │
+│ └──────────┘ └──────────────────┘ └───────┘        │
+│                                                      │
+│ [Review & Execute Fix]                               │
+└──────────────────────────────────────────────────────┘
+
+Fix command: kubectl delete pod mongodb-arbiter-0 -n infrastructure
 ```
 
 ---
@@ -191,18 +279,28 @@ All settings are read from environment variables (or `.env`):
 ```
 kubeastra/
 ├── ui/
-│   ├── frontend/          # Next.js chat UI
-│   ├── backend/           # FastAPI app + SQLite persistence
+│   ├── frontend/                # Next.js chat UI
+│   │   ├── app/chat/            # Chat page + /chat/:sessionId share routes
+│   │   │   ├── page-client.tsx  # Main chat component (ReAct rendering, result cards)
+│   │   │   └── [sessionId]/     # Shareable session page
+│   │   └── components/          # ClusterConnect, ResourceGraph, RootCauseCard, etc.
+│   ├── backend/                 # FastAPI app + SQLite persistence
+│   │   ├── routers/
+│   │   │   ├── chat.py          # Chat flow, tool dispatch, fix execution
+│   │   │   ├── cluster.py       # Cluster connection management (4 modes)
+│   │   │   └── sessions.py      # History, SSH targets, post-mortem API
+│   │   ├── react.py             # ReAct loop orchestrator
+│   │   └── db.py                # SQLite with cluster_connections table
 │   └── docker-compose.yml
 ├── mcp/
-│   ├── mcp_server/        # MCP server (stdio + HTTP transports)
-│   ├── k8s/               # kubectl wrappers, SSH runner, validators
-│   ├── ai_tools/          # Error analysis, runbooks, error summary
-│   ├── services/          # LLM providers, Weaviate, embeddings
+│   ├── mcp_server/              # MCP server (stdio + HTTP transports)
+│   ├── k8s/                     # kubectl wrappers, SSH runner, validators
+│   ├── ai_tools/                # Error analysis, fix playbooks, runbooks
+│   ├── services/                # LLM providers, Weaviate, embeddings
 │   └── config/settings.py
-├── helm/kubeastra/        # Helm chart
-├── demo/                  # Kind + broken workloads for `make demo`
-└── docs/                  # Public documentation
+├── helm/kubeastra/              # Helm chart
+├── demo/                        # Kind + broken workloads for `make demo`
+└── docs/                        # Public documentation
 ```
 
 ---
@@ -211,19 +309,25 @@ kubeastra/
 
 - [x] Gemini + Ollama (local) LLM support
 - [x] Demo mode with kind cluster
-- [x] Visual resource graph (Ingress → Service → Deployment → Pod)
 - [x] Approval flow for write operations
 - [x] Deployment-level investigation (`investigate_workload`)
 - [x] Namespace-wide health analysis (`analyze_namespace`)
-- [ ] Agentic investigation loop (multi-step ReAct)
+- [x] Agentic ReAct investigation loop (multi-step tool calling)
+- [x] Shareable session URLs + investigation timeline
+- [x] Auto-generated post-mortems from investigation sessions
+- [x] Visual debugging canvas (interactive resource graph with health glow, click-to-inspect, tooltips, MiniMap)
+- [x] Multi-modal cluster connection (auto-detect, kubeconfig upload, SSH, in-cluster)
+- [x] One-click fix execution with safety guards and slide-to-confirm
+- [x] Manual steps fallback when no automated fix is available
+- [x] Large cluster support (text-format parsing for all-namespaces queries)
+- [x] Session security hardening (path traversal prevention, cryptographic session IDs, command allowlists)
+- [ ] Team playbook engine — investigation templates that codify debugging patterns
+- [ ] Alert-driven auto-investigation (PagerDuty / OpsGenie / Alertmanager webhooks)
 - [ ] OpenAI + Anthropic Claude adapters
 - [ ] Prometheus / Loki / Tempo observability integrations
-- [ ] CLI tool (`kubeastra investigate <pod>`)
-- [ ] Slack bot integration (alert-driven investigation)
 - [ ] "What changed?" view — recent deployments, ConfigMap/Secret mutations
-- [ ] Shareable session URLs
-- [ ] VS Code extension (beyond MCP)
-- [ ] Post-mortem generator
+- [ ] Real-time collaborative sessions (WebSocket sync + presence indicators)
+- [ ] Slack bot integration (alert → investigation → findings in channel)
 - [ ] CNCF Sandbox submission
 
 ---

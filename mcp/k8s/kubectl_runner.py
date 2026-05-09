@@ -56,11 +56,16 @@ class KubectlResult:
 
 class KubectlRunner:
     """Safe kubectl command runner."""
-    
-    def __init__(self):
+
+    def __init__(
+        self,
+        kubeconfig_path: Optional[str] = None,
+        context: Optional[str] = None,
+    ):
         self.timeout = settings.kubectl_timeout_seconds
         self.max_output_bytes = settings.max_output_bytes
-        self.kubeconfig_path = settings.kubeconfig_path_resolved
+        self.kubeconfig_path = kubeconfig_path or settings.kubeconfig_path_resolved
+        self.context = context
         self.audit_enabled = settings.enable_audit_log
         self.audit_log_path = Path(settings.audit_log_path)
     
@@ -91,11 +96,15 @@ class KubectlRunner:
         
         # Build command
         cmd = ["kubectl"]
-        
+
         # Add kubeconfig if configured
         if self.kubeconfig_path:
             cmd.extend(["--kubeconfig", str(self.kubeconfig_path)])
-        
+
+        # Add context if configured (for multi-context kubeconfigs)
+        if self.context:
+            cmd.extend(["--context", self.context])
+
         # Add namespace if provided
         if namespace:
             cmd.extend(["--namespace", namespace])

@@ -4,7 +4,7 @@ Imports tool functions directly from mcp (via MCP_PATH env var)
 so there is zero code duplication.
 
 Run locally:
-    MCP_PATH=../../mcp uvicorn main:app --reload --port 8000
+    MCP_PATH=../../mcp uvicorn main:app --reload --port 8800
 """
 
 import os
@@ -33,7 +33,7 @@ if _mcp_env.exists():
     load_dotenv(str(_mcp_env))
 
 import db
-from routers import ai_tools, kubectl, recovery, health, chat, sessions
+from routers import ai_tools, kubectl, recovery, health, chat, sessions, cluster
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +93,7 @@ async def request_logging_middleware(request: Request, call_next):
 app.include_router(health.router, tags=["health"])
 app.include_router(chat.router, prefix="/api", tags=["Chat"])
 app.include_router(sessions.router, prefix="/api", tags=["Sessions"])
+app.include_router(cluster.router, prefix="/api", tags=["Cluster"])
 app.include_router(ai_tools.router, prefix="/api", tags=["AI Analysis"])
 app.include_router(kubectl.router, prefix="/api", tags=["Kubectl"])
 app.include_router(recovery.router, prefix="/api", tags=["Recovery"])

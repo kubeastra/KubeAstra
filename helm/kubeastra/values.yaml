@@ -31,7 +31,7 @@ backend:
 
   service:
     type: ClusterIP
-    port: 8000
+    port: 8800
 
   resources:
     requests:
@@ -45,7 +45,7 @@ backend:
   livenessProbe:
     httpGet:
       path: /health
-      port: 8000
+      port: 8800
     initialDelaySeconds: 30
     periodSeconds: 30
     timeoutSeconds: 5
@@ -54,7 +54,7 @@ backend:
   readinessProbe:
     httpGet:
       path: /health
-      port: 8000
+      port: 8800
     initialDelaySeconds: 15
     periodSeconds: 10
     timeoutSeconds: 5
@@ -109,7 +109,7 @@ frontend:
 
   service:
     type: LoadBalancer
-    port: 3000
+    port: 3300
     # Add cloud-provider annotations here as needed.
     # GKE internal LB example:
     #   networking.gke.io/load-balancer-type: "Internal"
@@ -128,12 +128,12 @@ frontend:
   # The frontend calls the backend API. In-cluster, use the backend Service DNS.
   # If using Ingress with a public URL, override this with the public backend URL.
   # Default uses the in-cluster service name resolved at deploy time via _helpers.tpl.
-  apiUrl: ""  # Leave blank to auto-resolve to http://<release-name>-backend:8000
+  apiUrl: ""  # Leave blank to auto-resolve to http://<release-name>-backend:8800
 
   livenessProbe:
     httpGet:
       path: /
-      port: 3000
+      port: 3300
     initialDelaySeconds: 20
     periodSeconds: 30
     timeoutSeconds: 5
@@ -142,7 +142,7 @@ frontend:
   readinessProbe:
     httpGet:
       path: /
-      port: 3000
+      port: 3300
     initialDelaySeconds: 10
     periodSeconds: 10
     timeoutSeconds: 5
