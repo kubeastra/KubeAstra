@@ -23,6 +23,8 @@ services:
       context: ./frontend
     environment:
       API_BASE_URL: http://backend:8800
+      PORT: "3300"
+      HOSTNAME: "0.0.0.0"
     ports:
       - "3300:3300"
     depends_on:

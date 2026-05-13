@@ -174,21 +174,29 @@ secrets:
 # The same Docker image also runs an HTTP MCP server that Cursor, Claude Desktop,
 # and any other MCP-compatible client can connect to directly.
 #
-# Cursor config example (after enabling):
+# Default: Internal LoadBalancer so IDEs on the corporate network can reach it
+# without exposing the endpoint to the public internet.
+#
+# MCP client config example (Cursor, Claude Desktop, VS Code, etc.):
 #   "mcpServers": {
 #     "kubeastra": {
 #       "type": "http",
-#       "url": "http://<node-ip>:<nodePort>/mcp/",
+#       "url": "http://<ilb-ip>:8001/mcp/",
 #       "headers": { "Authorization": "Bearer <mcpAuthToken>" }
 #     }
 #   }
 mcp:
-  # Expose port 8001 via a NodePort or LoadBalancer so external clients can connect.
-  # Set to ClusterIP to keep it internal only (access via kubectl port-forward).
   service:
-    type: ClusterIP      # Use NodePort or LoadBalancer for external IDE access
+    type: LoadBalancer
     port: 8001
     nodePort: ""         # Only used when type=NodePort (e.g. 30801)
+    # Annotations to make this an Internal Load Balancer.
+    # The correct annotation depends on your cloud provider.
+    # GKE:  networking.gke.io/load-balancer-type: "Internal"
+    # AWS:  service.beta.kubernetes.io/aws-load-balancer-internal: "true"
+    # Azure: service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+    annotations:
+      networking.gke.io/load-balancer-type: "Internal"
 
 # ── ServiceAccount + RBAC ─────────────────────────────────────────────────────
 serviceAccount:

@@ -1,14 +1,16 @@
 {{/*
 HTTP MCP server service — port 8001.
 
-Use type: NodePort or LoadBalancer to let Cursor / Claude Desktop / other MCP
-clients connect directly to the MCP server from outside the cluster.
+Exposes the MCP endpoint for IDE clients (Cursor, Claude Desktop, VS Code, etc.).
+Default is an Internal LoadBalancer so corporate-network IDEs can connect without
+exposing the endpoint publicly. Override mcp.service.type and annotations in
+values.yaml for your environment.
 
-Cursor config (after exposing externally):
+MCP client config example:
   "mcpServers": {
     "kubeastra": {
       "type": "http",
-      "url": "http://<node-ip>:<nodePort>/mcp/",
+      "url": "http://<ilb-ip>:8001/mcp/",
       "headers": { "Authorization": "Bearer <mcpAuthToken>" }
     }
   }
@@ -21,6 +23,10 @@ metadata:
   labels:
     {{- include "kubeastra.labels" . | nindent 4 }}
     app.kubernetes.io/component: mcp
+  {{- with .Values.mcp.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   type: {{ .Values.mcp.service.type }}
   selector:

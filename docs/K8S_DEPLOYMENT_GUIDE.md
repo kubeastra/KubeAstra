@@ -14,12 +14,13 @@ Artifactory (your registry)
   └── kubeastra-frontend:1.0.0  ← Next.js standalone
 
 Kubernetes namespace: kubeastra
-  ├── Deployment/backend         (1 pod — FastAPI on :8800)
+  ├── Deployment/backend         (1 pod — FastAPI on :8800 + MCP on :8001)
   ├── Deployment/frontend        (1 pod — Next.js on :3300)
-  ├── Service/backend            (ClusterIP :8800)
-  ├── Service/frontend           (ClusterIP :3300)
+  ├── Service/backend            (ClusterIP :8800 — internal, frontend proxies to it)
+  ├── Service/frontend           (LoadBalancer :3300 — browser access)
+  ├── Service/mcp                (ILB :8001 — IDE access for Cursor/Claude Desktop)
   ├── ConfigMap/app-config       (env vars — timeouts, namespaces, model names)
-  ├── Secret/app-secrets         (GEMINI_API_KEY + kubeconfig file)
+  ├── Secret/app-secrets         (GEMINI_API_KEY + kubeconfig file + MCP auth token)
   ├── ServiceAccount             (pod identity)
   ├── ClusterRole + Binding      (kubectl read/write permissions)
   ├── PersistentVolumeClaim      (SQLite chat_history.db — optional but recommended)
@@ -35,7 +36,7 @@ Kubernetes namespace: kubeastra
 | Local kubectl | kubeconfig Secret mounted at `/app/kubeconfig/config` |
 | SSH remote cluster | Users provide SSH creds in the UI at runtime — no extra config needed |
 | SQLite persistence | `chat_history.db` at `/app/data/` — mount a PVC to survive pod restarts |
-| HTTP MCP server | Optional second port `:8001` — expose as a separate Service if needed |
+| HTTP MCP server | Internal LoadBalancer on `:8001` — IDE clients connect via ILB IP |
 
 ---
 
@@ -331,6 +332,75 @@ helm upgrade kubeastra . \
 ```
 
 > **Runtime config note:** With the new proxy model, switching backend targets is usually a frontend runtime env change (`API_BASE_URL`), not a frontend rebuild.
+
+---
+
+## Connecting IDEs via MCP (Cursor, Claude Desktop, VS Code)
+
+The MCP service is exposed as an Internal Load Balancer by default. After deploying, get the ILB IP:
+
+```bash
+kubectl get service kubeastra-mcp -n kubeastra
+# NAME             TYPE           CLUSTER-IP     EXTERNAL-IP    PORT(S)
+# kubeastra-mcp    LoadBalancer   10.x.x.x       10.y.y.y       8001:xxxxx/TCP
+```
+
+Use the `EXTERNAL-IP` in your IDE's MCP config.
+
+### Cursor / Claude Desktop / VS Code — `.mcp.json`
+
+```json
+{
+  "mcpServers": {
+    "kubeastra": {
+      "type": "http",
+      "url": "http://<EXTERNAL-IP>:8001/mcp/",
+      "headers": {
+        "Authorization": "Bearer <your-mcp-auth-token>"
+      }
+    }
+  }
+}
+```
+
+Replace `<EXTERNAL-IP>` with the ILB IP from `kubectl get service` above, and `<your-mcp-auth-token>` with the value you set in `secrets.mcpAuthToken`.
+
+### Cloud provider ILB annotations
+
+The default annotation targets GKE. Override for your provider in `my-values.yaml`:
+
+```yaml
+# AWS
+mcp:
+  service:
+    annotations:
+      service.beta.kubernetes.io/aws-load-balancer-internal: "true"
+
+# Azure
+mcp:
+  service:
+    annotations:
+      service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+
+# GKE (default)
+mcp:
+  service:
+    annotations:
+      networking.gke.io/load-balancer-type: "Internal"
+```
+
+### Securing MCP access
+
+Set `secrets.mcpAuthToken` during install so all MCP requests require a bearer token:
+
+```bash
+helm install kubeastra . \
+  --namespace kubeastra \
+  -f my-values.yaml \
+  --set secrets.mcpAuthToken="your-secure-token-here"
+```
+
+Without this token, the MCP server accepts unauthenticated requests.
 
 ---
 

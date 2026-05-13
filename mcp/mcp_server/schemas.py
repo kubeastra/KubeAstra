@@ -26,7 +26,7 @@ class FindWorkloadInput(BaseModel):
 
 class GetPodsInput(BaseModel):
     """Input schema for get_pods tool."""
-    
+
     namespace: str = Field(
         description="Namespace to query for pods"
     )
@@ -34,6 +34,16 @@ class GetPodsInput(BaseModel):
         default=None,
         description="Optional label selector (e.g., 'app=myapp,env=prod')"
     )
+    status_filter: Optional[str] = Field(
+        default=None,
+        description="Filter pods by status (e.g., 'CrashLoopBackOff', 'Error', 'Pending', 'Running')"
+    )
+
+
+class GetNodesInput(BaseModel):
+    """Input schema for get_nodes tool."""
+
+    pass
 
 
 class GetNamespacesInput(BaseModel):

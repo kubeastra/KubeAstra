@@ -59,3 +59,4 @@ yarn-error.log*
 .ruff_cache/
 coverage/
 scripts/demo-recorder/output/
+helm/kubeastra/values-dev.yaml

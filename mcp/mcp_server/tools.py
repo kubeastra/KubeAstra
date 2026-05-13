@@ -25,7 +25,8 @@ from mcp.server import Server
 from mcp.types import Tool, TextContent
 
 from k8s.wrappers import (
-    find_workload, get_pods, get_namespaces, list_namespace_resources, list_services,
+    find_workload, get_pods, get_namespaces, get_nodes, list_namespace_resources,
+    list_services,
     describe_pod, get_pod_logs, get_events,
     get_deployment, get_service, get_endpoints, get_rollout_status,
     k8sgpt_analyze, add_kubeconfig_context, list_kubeconfig_contexts,
@@ -44,7 +45,8 @@ import ai_tools.runbook as _runbook_tool
 
 from mcp_server.schemas import (
     # Live kubectl schemas
-    FindWorkloadInput, GetPodsInput, GetNamespacesInput, ListNamespaceResourcesInput,
+    FindWorkloadInput, GetPodsInput, GetNodesInput, GetNamespacesInput,
+    ListNamespaceResourcesInput,
     ListServicesInput, GetResourceGraphInput, DescribePodInput, GetPodLogsInput,
     GetEventsInput, GetDeploymentInput, GetServiceInput, GetEndpointsInput,
     GetRolloutStatusInput, K8sgptAnalyzeInput, AddKubeconfigContextInput,
@@ -92,6 +94,15 @@ def register_tools(server: Server) -> None:
                     "Use this when you need to discover the available namespaces before drilling deeper."
                 ),
                 inputSchema=GetNamespacesInput.model_json_schema()
+            ),
+            Tool(
+                name="get_nodes",
+                description=(
+                    "List all nodes in the current cluster with status, roles, capacity, "
+                    "and resource usage. Use when the user asks about cluster nodes, capacity, "
+                    "or scheduling constraints."
+                ),
+                inputSchema=GetNodesInput.model_json_schema()
             ),
             Tool(
                 name="list_namespace_resources",
@@ -376,10 +387,13 @@ def register_tools(server: Server) -> None:
 
             elif name == "get_pods":
                 inp = GetPodsInput(**arguments)
-                return [TextContent(type="text", text=_fmt(get_pods(inp.namespace, inp.label_selector)))]
+                return [TextContent(type="text", text=_fmt(get_pods(inp.namespace, inp.label_selector, inp.status_filter)))]
 
             elif name == "get_namespaces":
                 return [TextContent(type="text", text=_fmt(get_namespaces()))]
+
+            elif name == "get_nodes":
+                return [TextContent(type="text", text=_fmt(get_nodes()))]
 
             elif name == "list_namespace_resources":
                 inp = ListNamespaceResourcesInput(**arguments)
