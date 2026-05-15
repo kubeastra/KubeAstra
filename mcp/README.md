@@ -49,6 +49,17 @@ Then point the IDE at:
 http://127.0.0.1:8001/mcp/
 ```
 
+## CLI flags
+
+Both MCP server entry points support `--version` and print the shared MCP package version:
+
+```bash
+python -m mcp_server.server --version
+python -m http_mcp.http_server --version
+```
+
+Each command prints `kubeastra-mcp 0.1.0` and exits 0.
+
 ---
 
 ## Project Structure
