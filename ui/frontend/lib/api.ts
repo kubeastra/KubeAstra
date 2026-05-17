@@ -71,6 +71,7 @@ export interface ChatResponse {
   error?: string | null;
   timestamp?: number;
   suggested_actions?: Array<{ label: string; command: string; confirm?: boolean }>;
+  llm_not_configured?: boolean;
 }
 
 export interface ExecuteResponse {
