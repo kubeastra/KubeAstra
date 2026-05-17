@@ -37,9 +37,31 @@ from routers import ai_tools, kubectl, recovery, health, chat, sessions, cluster
 
 logger = logging.getLogger(__name__)
 
+
+_LLM_NOT_CONFIGURED_WARNING = (
+    "No LLM configured. Set GEMINI_API_KEY in .env, or set "
+    "LLM_PROVIDER=ollama with a running Ollama server. "
+    "Live cluster tools will work but AI synthesis will be disabled."
+)
+
+
+def _warn_if_llm_unconfigured() -> None:
+    try:
+        from services.llm import get_provider
+
+        provider = get_provider()
+    except Exception as exc:
+        logger.warning("LLM provider unavailable during startup: %s", exc)
+        return
+
+    if getattr(provider, "name", "") == "null":
+        logger.warning(_LLM_NOT_CONFIGURED_WARNING)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db.init_db()
+    _warn_if_llm_unconfigured()
     yield
 
 

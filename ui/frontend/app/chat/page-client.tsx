@@ -39,6 +39,7 @@ interface Message {
   loading?: boolean;
   viaSSH?: boolean;
   suggestedActions?: Array<{ label: string; command: string; confirm?: boolean }>;
+  llmNotConfigured?: boolean;
 }
 
 interface Health {
@@ -133,6 +134,62 @@ function extractSummaryText(text: string): string {
   // meaningful, that's fine — keep it as a short intro line above the card.
   // But if the entire text was just a table/list and nothing remains, return empty.
   return result;
+}
+
+function NoLlmConfiguredCard() {
+  return (
+    <div style={{
+      border: "1px solid var(--amber-bd)",
+      background: "var(--amber-bg)",
+      borderRadius: 8,
+      padding: 14,
+      marginBottom: 12,
+      color: "var(--ink-2)",
+    }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--amber)", marginBottom: 6 }}>
+        AI synthesis is not configured
+      </div>
+      <div style={{ fontSize: 12, lineHeight: 1.55, marginBottom: 12 }}>
+        Live kubectl tools are still available. Add a Gemini key or run Ollama locally to enable routed investigations and answer synthesis.
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <a
+          href="https://aistudio.google.com/"
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            color: "var(--accent)",
+            background: "#FFFFFF",
+            border: "1px solid var(--accent-bd)",
+            borderRadius: 6,
+            padding: "7px 10px",
+            textDecoration: "none",
+          }}
+        >
+          Set up Gemini
+        </a>
+        <a
+          href="https://ollama.com/"
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            color: "var(--ink-2)",
+            background: "#FFFFFF",
+            border: "1px solid var(--rule)",
+            borderRadius: 6,
+            padding: "7px 10px",
+            textDecoration: "none",
+          }}
+        >
+          Run Ollama locally
+        </a>
+      </div>
+    </div>
+  );
 }
 
 /** Map tool_used to reasoning steps.
@@ -442,7 +499,16 @@ export default function ChatPage({ sharedSessionId }: { sharedSessionId?: string
       setIsThinking(false);
       setMessages(prev => prev.map(m =>
         m.id === thinkingMsg.id
-          ? { ...m, loading: false, text: res.reply, tool: res.tool_used, result: res.result, error: res.error, suggestedActions: res.suggested_actions }
+          ? {
+              ...m,
+              loading: false,
+              text: res.reply,
+              tool: res.tool_used,
+              result: res.result,
+              error: res.error,
+              suggestedActions: res.suggested_actions,
+              llmNotConfigured: res.llm_not_configured,
+            }
           : m
       ));
     } catch (err) {
@@ -663,7 +729,12 @@ export default function ChatPage({ sharedSessionId }: { sharedSessionId?: string
           )}
 
           {/* Messages */}
-          {messages.map((m) => {
+          {messages.map((m, index) => {
+            const showLlmSetupCard = Boolean(
+              m.llmNotConfigured &&
+              messages.findIndex(msg => msg.role === "assistant" && msg.llmNotConfigured) === index
+            );
+
             if (m.role === "user") {
               return <UserMessage key={m.id} text={m.text} time={formatTime()}/>;
             }
@@ -711,6 +782,7 @@ export default function ChatPage({ sharedSessionId }: { sharedSessionId?: string
 
               return (
                 <AstraMessage key={m.id} time={formatTime()}>
+                  {showLlmSetupCard && <NoLlmConfiguredCard/>}
                   {/* Short AI insight line — only if it adds value beyond the card */}
                   {cleanSummary && (
                     <div style={{
@@ -736,6 +808,7 @@ export default function ChatPage({ sharedSessionId }: { sharedSessionId?: string
             // Plain text
             return (
               <AstraMessage key={m.id} time={formatTime()}>
+                {showLlmSetupCard && <NoLlmConfiguredCard/>}
                 <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.6 }}>
                   <ReactMarkdown>{m.text}</ReactMarkdown>
                 </div>

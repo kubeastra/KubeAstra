@@ -84,6 +84,7 @@ class ChatResponse(BaseModel):
     error: Optional[str] = None
     timestamp: float = 0.0
     suggested_actions: list = []
+    llm_not_configured: bool = False
 
 
 class ExecuteRequest(BaseModel):
@@ -1046,12 +1047,16 @@ def chat(req: ChatRequest):
 
         # 2. Decide: ReAct (multi-step) or single-shot
         provider = _llm_provider()
+        llm_not_configured = getattr(provider, "name", "") == "null"
         use_react = provider is not None and provider.enabled
 
         if use_react:
-            return _chat_react(req, provider, _persist, session_tag)
+            response = _chat_react(req, provider, _persist, session_tag)
         else:
-            return _chat_single_shot(req, _persist, session_tag)
+            response = _chat_single_shot(req, _persist, session_tag)
+
+        response.llm_not_configured = llm_not_configured
+        return response
 
     except Exception as e:
         logger.exception("Chat error")

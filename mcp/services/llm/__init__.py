@@ -6,6 +6,7 @@ and registering it in `get_provider()` below.
 """
 
 from .base import LLMProvider
+from .null_provider import NullProvider
 
 
 def get_provider() -> LLMProvider:
@@ -27,6 +28,8 @@ def get_provider() -> LLMProvider:
         )
 
     if name == "gemini":
+        if not settings.gemini_api_key:
+            return NullProvider()
         from .gemini_provider import GeminiProvider
         return GeminiProvider(
             api_key=settings.gemini_api_key,
@@ -39,4 +42,4 @@ def get_provider() -> LLMProvider:
     )
 
 
-__all__ = ["LLMProvider", "get_provider"]
+__all__ = ["LLMProvider", "NullProvider", "get_provider"]
