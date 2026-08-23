@@ -23,6 +23,30 @@ def test_apply_span_changes_only_the_value():
     assert yaml.safe_load(out)["spec"]["replicas"] == 5
 
 
+def test_unquoted_scalar_stays_unquoted():
+    span = find_span(DOC, 0, ("spec", "replicas"))
+    out = apply_span(DOC, span, 5)
+    assert "replicas: 5" in out and 'replicas: "5"' not in out
+
+
+def test_double_quoted_scalar_keeps_its_quotes():
+    # A quoted numeric-looking value must stay quoted, or YAML would coerce it
+    # to a different type and the diff would be larger than the change.
+    doc = 'spec:\n  containers:\n    - name: api\n      env:\n        - name: PORT\n          value: "3550"\n'
+    span = find_span(doc, 0, ("spec", "containers", "api", "env", "PORT", "value"))
+    out = apply_span(doc, span, "8080")
+    assert 'value: "8080"' in out                       # quotes preserved
+    val = yaml.safe_load(out)["spec"]["containers"][0]["env"][0]["value"]
+    assert val == "8080" and isinstance(val, str)       # still a string
+
+
+def test_single_quoted_scalar_keeps_single_quotes():
+    doc = "spec:\n  replicas: '3'\n"
+    span = find_span(doc, 0, ("spec", "replicas"))
+    out = apply_span(doc, span, "5")
+    assert "replicas: '5'" in out
+
+
 def test_diff_is_one_line():
     span = find_span(DOC, 0, ("spec", "replicas"))
     out = apply_span(DOC, span, 5)
